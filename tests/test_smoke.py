@@ -101,6 +101,7 @@ def test_full_stage_one_path(wired):
             assert "60" in joined
             assert "котиках" not in joined
             assert len(joined) < len(PAGE)
+            assert all(len(f["fragment_id"]) == 16 for f in frags["fragments"])
 
             marked = await _call(
                 client,

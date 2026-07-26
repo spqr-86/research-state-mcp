@@ -15,7 +15,7 @@ import sqlite3
 import structlog
 from fastmcp import FastMCP
 
-from . import config, db, fragments, state
+from . import briefs, config, db, fragments, issued, metrics, state
 
 log = structlog.get_logger(__name__)
 
@@ -30,6 +30,9 @@ def connection() -> sqlite3.Connection:
     if _conn is None:
         _conn = db.connect(config.state_db_path())
         state.init_schema(_conn)
+        issued.init_schema(_conn)
+        metrics.init_schema(_conn)
+        briefs.init_schema(_conn)
     return _conn
 
 
@@ -131,14 +134,33 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
             "hint": "fetch this URL with the search MCP first, then call fragments_for again",
         }
     found = fragments.extract(page["content"], query, k=k, neighbours=neighbours)
+    conn = connection()
+    found = [
+        issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f) for f in found
+    ]
+    paragraphs_total = len(fragments.split_paragraphs(page["content"]))
+    metrics.record_fetch(
+        conn,
+        url=url,
+        paragraphs_total=paragraphs_total,
+        paragraphs_returned=len(found),
+        chars_total=len(page["content"]),
+        chars_returned=sum(len(f["text"]) for f in found),
+    )
     return {
         "url": url,
         "title": page["title"],
         "fetched_at": page["fetched_at"],
         "cache_path": page["cache_path"],
-        "paragraphs_total": len(fragments.split_paragraphs(page["content"])),
+        "paragraphs_total": paragraphs_total,
         "fragments": found,
     }
+
+
+@mcp.tool
+def research_state_stats() -> dict:
+    """How much page text this server has kept out of the context so far."""
+    return metrics.stats(connection())
 
 
 def run() -> None:
