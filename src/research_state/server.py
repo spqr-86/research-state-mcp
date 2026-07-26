@@ -11,11 +11,10 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date
 
 import structlog
 from fastmcp import FastMCP
-
-from datetime import date
 
 from . import briefs, config, db, fragments, issued, metrics, state
 

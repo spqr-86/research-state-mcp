@@ -38,4 +38,14 @@ packages = ["src/research_state"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["eval"]
 markers = ["smoke: minimal end-to-end path, must pass after every commit"]
+
+[tool.ruff]
+target-version = "py312"
+# 88 is the formatter's default and what new code is written to; the cap is
+# looser only because existing SQL literals and docstrings run past it.
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "RUF"]
