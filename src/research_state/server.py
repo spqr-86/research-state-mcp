@@ -4,46 +4,31 @@
 # Role: expose state.py / fragments.py as MCP tools over stdio. No logic here
 # beyond argument shaping and error-to-payload conversion, so the same modules
 # can be called directly if this ever moves to code-execution form.
-# Paths come from env (RESEARCH_STATE_DB, SEARCH_MCP_CACHE) so nothing in the
-# code assumes a particular home directory.
+# Paths come from config.py (env-overridable) so nothing here assumes a
+# particular home directory.
 """
 
 from __future__ import annotations
 
-import os
 import sqlite3
-from pathlib import Path
 
 import structlog
 from fastmcp import FastMCP
 
-from . import db, fragments, state
+from . import config, db, fragments, state
 
 log = structlog.get_logger(__name__)
-
-DEFAULT_STATE_DB = (
-    Path.home() / ".local" / "share" / "research-state-mcp" / "state.sqlite"
-)
-DEFAULT_SEARCH_CACHE = Path.home() / ".cache" / "search-mcp" / "cache.sqlite"
 
 mcp = FastMCP("research-state")
 
 _conn: sqlite3.Connection | None = None
 
 
-def state_db_path() -> Path:
-    return Path(os.environ.get("RESEARCH_STATE_DB", DEFAULT_STATE_DB))
-
-
-def search_cache_path() -> Path:
-    return Path(os.environ.get("SEARCH_MCP_CACHE", DEFAULT_SEARCH_CACHE))
-
-
 def connection() -> sqlite3.Connection:
     """One lazily-opened connection per process."""
     global _conn
     if _conn is None:
-        _conn = db.connect(state_db_path())
+        _conn = db.connect(config.state_db_path())
         state.init_schema(_conn)
     return _conn
 
@@ -138,7 +123,7 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
         k: Maximum number of fragments (2-5 is the useful range).
         neighbours: Paragraphs of context kept on each side of a hit.
     """
-    page = fragments.cached_page(search_cache_path(), url)
+    page = fragments.cached_page(config.search_cache_path(), url)
     if page is None:
         return {
             "error": "not_cached",
@@ -159,7 +144,9 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
 def run() -> None:
     """stdio entry point."""
     log.info(
-        "server.start", state_db=str(state_db_path()), cache=str(search_cache_path())
+        "server.start",
+        state_db=str(config.state_db_path()),
+        cache=str(config.search_cache_path()),
     )
     mcp.run()
 
