@@ -1,0 +1,41 @@
+[project]
+name = "research-state-mcp"
+version = "0.1.0"
+description = "MCP server that gives a research workflow memory, state and paragraph-level fragments — no LLM inside."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["mcp", "model-context-protocol", "research", "deep-research", "sqlite", "fts5"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    # Upper bound is deliberate: awslabs/mcp#2533 — every version of that package
+    # broke when a major release landed without one.
+    "fastmcp>=3.0,<4",
+    "structlog>=24.1",
+]
+
+[project.scripts]
+research-state-mcp = "research_state.server:run"
+
+[project.urls]
+Repository = "https://github.com/spqr86/research-state-mcp"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/research_state"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["smoke: minimal end-to-end path, must pass after every commit"]
