@@ -80,7 +80,14 @@ inside a transaction**.
 - Stage 1 **done** — `db.py` / `state.py` / `fragments.py` / `server.py`, 39 tests green
   including the smoke test. Checked on live cached pages: a 60-paragraph English page
   returns 594 characters, a 51-paragraph Russian page returns 2.5 KB.
-- Stages 2–3 not started. Not yet registered as an MCP server in Claude Code.
+- Stage 2 **code done** — `config.py`, `issued.py`, `briefs.py`, `metrics.py` plus the
+  new tools; 72 tests green. Verified on a real cached page: a fabricated quote is
+  refused, an honest brief is written to disk, a repeat question finds it, and the
+  saved-context ratio came out at 0.93 (6459 characters on the page, 476 returned).
+  Left: install the skill into `~/.claude/skills/` and rewrite `research.md` — both
+  need Petr's console consent.
+- Stage 3 not started.
+- Registered in Claude Code user scope as `research-state`; tools appear after a restart.
 
 ## 7. Next steps
 
@@ -90,8 +97,12 @@ inside a transaction**.
 - [x] `fragments.py` — paragraph split, FTS5 ranking, neighbour context
 - [x] `server.py` — FastMCP adapters over the above, stdio run
 - [ ] Push the repo public (needs Petr's word)
-- [ ] Register in Claude Code, use it on a live research
-- [ ] Stage 2: `research_finish`, `brief_search`, `verify_claim`, skill, `research.md`
+- [x] Register in Claude Code
+- [x] Stage 2 code: fragment ids, `research_finish`, `brief_search`, `verify_claim`,
+      `research_gaps`, saved-context metrics
+- [ ] Install the skill into `~/.claude/skills/deep-research/` (console consent)
+- [ ] Rewrite `~/.claude/agents/research.md` into a fetcher (console consent)
+- [ ] Use it on one real research end-to-end through the MCP layer
 - [ ] Stage 3: local NLI encoder inside `verify_claim` (measure first, decide after)
 
 ## 8. Open decisions
