@@ -112,6 +112,62 @@ def test_scores_are_descending():
     assert scores == sorted(scores, reverse=True)
 
 
+# --- pages with no paragraph structure ---------------------------------------
+
+# A dataset viewer, a changelog, a wiki table: one "paragraph" of many lines and
+# no blank line anywhere. Splitting on blank lines alone hands back the page.
+TABLE_PAGE = "| id | topic | text |\n" + "\n".join(
+    f"| {i} | {'needle' if i == 40 else 'filler'} | " + ("lorem ipsum " * 20) + "|"
+    for i in range(120)
+)
+
+
+def test_a_line_only_page_is_split_into_many_paragraphs():
+    paras = fragments.split_paragraphs(TABLE_PAGE)
+    assert len(paras) > 10
+    assert all(len(p) <= fragments.MAX_PARAGRAPH_CHARS for p in paras)
+
+
+def test_extract_on_a_line_only_page_returns_fragments_not_the_page():
+    result = fragments.extract(TABLE_PAGE, "needle", k=3, neighbours=1)
+    joined = "".join(f["text"] for f in result)
+    assert "needle" in joined
+    assert len(joined) < len(TABLE_PAGE) / 5
+
+
+def test_no_single_fragment_exceeds_the_paragraph_cap_times_the_window():
+    result = fragments.extract(TABLE_PAGE, "needle", k=5, neighbours=1)
+    window = fragments.MAX_PARAGRAPH_CHARS * 3
+    assert all(len(f["text"]) <= window for f in result)
+
+
+def test_a_single_unbroken_line_is_still_capped():
+    """No newlines at all — the last resort is a hard character cut."""
+    text = ("filler " * 500) + "needle " + ("filler " * 500)
+    paras = fragments.split_paragraphs(text)
+    assert len(paras) > 1
+    assert all(len(p) <= fragments.MAX_PARAGRAPH_CHARS for p in paras)
+
+
+def test_splitting_long_paragraphs_keeps_spans_exact():
+    """Fragments stay re-anchorable: every span must slice the original verbatim."""
+    for text in (TABLE_PAGE, PAGE, ("filler " * 500) + "needle"):
+        for para, start, end in fragments.split_paragraphs_with_spans(text):
+            assert text[start:end] == para
+
+
+def test_normal_pages_are_not_re_split():
+    """The cap must not change behaviour on ordinary prose."""
+    assert fragments.split_paragraphs(PAGE) == [
+        p.strip() for p in PAGE.split("\n\n") if p.strip()
+    ]
+
+
+def test_unstructured_pages_are_flagged():
+    assert fragments.looks_unstructured(TABLE_PAGE) is True
+    assert fragments.looks_unstructured(PAGE) is False
+
+
 # --- reading the foreign free-search-mcp cache (read-only) -------------------
 
 

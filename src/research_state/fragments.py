@@ -30,10 +30,17 @@ DEFAULT_K = 5
 DEFAULT_NEIGHBOURS = 1
 ANCHOR_CONTEXT = 32
 
+# A page whose author never pressed Enter twice — a dataset viewer, a changelog,
+# a wiki table — is one blank-line-delimited "paragraph" the size of the page.
+# Returning it would hand back everything this project exists to withhold, so
+# such a block is cut further: first on line breaks, then, failing that, on
+# characters.
+MAX_PARAGRAPH_CHARS = 2000
+
 
 def split_paragraphs(text: str) -> list[str]:
-    """Split on blank lines, dropping empties and trailing whitespace."""
-    return [p.strip() for p in _PARAGRAPH_SPLIT.split(text or "") if p.strip()]
+    """Split on blank lines, then cut any block too large to be one fragment."""
+    return [span[0] for span in split_paragraphs_with_spans(text)]
 
 
 def split_paragraphs_with_spans(text: str) -> list[tuple[str, int, int]]:
@@ -49,8 +56,46 @@ def split_paragraphs_with_spans(text: str) -> list[tuple[str, int, int]]:
         if not stripped:
             continue
         start = match.start() + chunk.index(stripped)
-        spans.append((stripped, start, start + len(stripped)))
+        spans.extend(_cut_to_size(stripped, start))
     return spans
+
+
+def _cut_to_size(block: str, offset: int) -> list[tuple[str, int, int]]:
+    """Break an oversized block into span-accurate pieces, on lines if possible."""
+    if len(block) <= MAX_PARAGRAPH_CHARS:
+        return [(block, offset, offset + len(block))]
+
+    pieces: list[tuple[str, int, int]] = []
+    cursor = 0
+    for line in block.splitlines(keepends=True):
+        start = cursor
+        cursor += len(line)
+        stripped = line.strip()
+        if not stripped:
+            continue
+        line_start = start + line.index(stripped)
+        pieces.extend(_cut_by_chars(stripped, offset + line_start))
+    return pieces
+
+
+def _cut_by_chars(piece: str, offset: int) -> list[tuple[str, int, int]]:
+    """Last resort for a single line longer than the cap: fixed-width slices."""
+    if len(piece) <= MAX_PARAGRAPH_CHARS:
+        return [(piece, offset, offset + len(piece))]
+    return [
+        (
+            piece[i : i + MAX_PARAGRAPH_CHARS],
+            offset + i,
+            offset + i + len(piece[i : i + MAX_PARAGRAPH_CHARS]),
+        )
+        for i in range(0, len(piece), MAX_PARAGRAPH_CHARS)
+    ]
+
+
+def looks_unstructured(text: str) -> bool:
+    """True when the page had no usable paragraph breaks and had to be cut."""
+    blocks = [p.strip() for p in _PARAGRAPH_SPLIT.split(text or "") if p.strip()]
+    return any(len(b) > MAX_PARAGRAPH_CHARS for b in blocks)
 
 
 def _fts_query(query: str) -> str:

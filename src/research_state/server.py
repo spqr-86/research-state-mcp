@@ -140,7 +140,8 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
     found = fragments.extract(page["content"], query, k=k, neighbours=neighbours)
     conn = connection()
     found = [
-        issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f) for f in found
+        issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f)
+        for f in found
     ]
     paragraphs_total = len(fragments.split_paragraphs(page["content"]))
     metrics.record_fetch(
@@ -151,7 +152,7 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
         chars_total=len(page["content"]),
         chars_returned=sum(len(f["text"]) for f in found),
     )
-    return {
+    result = {
         "url": url,
         "title": page["title"],
         "fetched_at": page["fetched_at"],
@@ -159,6 +160,12 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
         "paragraphs_total": paragraphs_total,
         "fragments": found,
     }
+    if fragments.looks_unstructured(page["content"]):
+        result["note"] = (
+            "this page has no paragraph breaks (a table or a data dump); it was cut"
+            " into fixed-size pieces, so ranking is weaker than on prose"
+        )
+    return result
 
 
 @mcp.tool
@@ -258,7 +265,12 @@ def verify_claim(claim: str, url: str) -> dict:
     found = fragments_for(url=url, query=claim, k=3)
     if "error" in found:
         return found
-    return {**found, "verdict": "unverified", "confidence": None, "method": "quote-match"}
+    return {
+        **found,
+        "verdict": "unverified",
+        "confidence": None,
+        "method": "quote-match",
+    }
 
 
 @mcp.tool
