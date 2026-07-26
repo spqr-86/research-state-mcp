@@ -84,8 +84,8 @@ inside a transaction**.
   new tools; 72 tests green. Verified on a real cached page: a fabricated quote is
   refused, an honest brief is written to disk, a repeat question finds it, and the
   saved-context ratio came out at 0.93 (6459 characters on the page, 476 returned).
-  Left: install the skill into `~/.claude/skills/` and rewrite `research.md` — both
-  need Petr's console consent.
+  Skill installed as `deep-research`; fetching subagent added as `research-fetch`.
+  Left: create the GitHub repo and push.
 - Stage 3 not started.
 - Registered in Claude Code user scope as `research-state`; tools appear after a restart.
 
@@ -96,12 +96,15 @@ inside a transaction**.
 - [x] `state.py` — `research_start` / `research_plan` / `research_mark` + schema
 - [x] `fragments.py` — paragraph split, FTS5 ranking, neighbour context
 - [x] `server.py` — FastMCP adapters over the above, stdio run
-- [ ] Push the repo public (needs Petr's word)
+- [ ] Push the repo public — remote set to `git@github.com:spqr-86/research-state-mcp.git`,
+      blocked until the GitHub repo exists (the stored PAT cannot create repositories)
 - [x] Register in Claude Code
 - [x] Stage 2 code: fragment ids, `research_finish`, `brief_search`, `verify_claim`,
       `research_gaps`, saved-context metrics
-- [ ] Install the skill into `~/.claude/skills/deep-research/` (console consent)
-- [ ] Rewrite `~/.claude/agents/research.md` into a fetcher (console consent)
+- [x] Install the skill into `~/.claude/skills/deep-research/`
+- [x] Add the `research-fetch` subagent and unstale `research.md`
+      (`research` keeps its brief-returning behaviour — it is used for general web
+      search across the whole system, so the fetcher became a separate agent)
 - [ ] Use it on one real research end-to-end through the MCP layer
 - [ ] Stage 3: local NLI encoder inside `verify_claim` (measure first, decide after)
 
