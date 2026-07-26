@@ -128,3 +128,97 @@ def test_full_stage_one_path(wired):
             assert status["subquestions"][1]["status"] == "open"
 
     asyncio.run(scenario())
+
+
+@pytest.mark.smoke
+def test_brief_lifecycle(wired, tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_BRIEF_DIR", str(tmp_path / "briefs"))
+
+    async def scenario() -> None:
+        async with Client(server.mcp) as client:
+            job_id = (await _call(client, "research_start", {"topic": "how does RRF work"}))[
+                "job_id"
+            ]
+            await _call(
+                client,
+                "research_plan",
+                {"job_id": job_id, "subquestions": ["default k", "does it normalise"]},
+            )
+            frags = await _call(
+                client,
+                "fragments_for",
+                {"url": "https://example.com/rrf", "query": "default value of k", "k": 1},
+            )
+            fid = frags["fragments"][0]["fragment_id"]
+
+            # a fabricated quote is refused, and nothing is written
+            refused = await _call(
+                client,
+                "research_finish",
+                {
+                    "job_id": job_id,
+                    "summary": "s",
+                    "claims": [
+                        {
+                            "text": "k is 42",
+                            "kind": "fact",
+                            "fragment_id": fid,
+                            "quote": "k defaults to 42",
+                        }
+                    ],
+                    "gaps": ["none"],
+                },
+            )
+            assert refused["error"] == "invalid_brief"
+            assert refused["problems"][0]["reason"] == "quote_not_found"
+
+            # an open subquestion with nothing said about it blocks the finish
+            blocked = await _call(
+                client,
+                "research_finish",
+                {"job_id": job_id, "summary": "s", "claims": [], "gaps": []},
+            )
+            assert blocked["error"] == "unclosed_subquestions"
+
+            await _call(client, "research_mark", {"job_id": job_id, "subq_id": 1, "answer": "60"})
+            gaps = await _call(client, "research_gaps", {"job_id": job_id})
+            assert gaps["open"] == [{"subq_id": 2, "text": "does it normalise"}]
+
+            saved = await _call(
+                client,
+                "research_finish",
+                {
+                    "job_id": job_id,
+                    "summary": "RRF fuses ranked lists.",
+                    "claims": [
+                        {
+                            "text": "k defaults to 60",
+                            "kind": "fact",
+                            "fragment_id": fid,
+                            "quote": "constant k defaults to 60",
+                        }
+                    ],
+                    "gaps": ["did not check whether it normalises"],
+                },
+            )
+            assert saved["path"].endswith(".md")
+            assert len(str(saved)) < 2000  # a path and counts, not the brief itself
+
+            hits = await _call(client, "brief_search", {"query": "RRF"})
+            assert hits["briefs"][0]["path"] == saved["path"]
+
+            again = await _call(client, "research_start", {"topic": "how does RRF work"})
+            assert again["similar_briefs"]
+
+            verdict = await _call(
+                client,
+                "verify_claim",
+                {"claim": "the constant k defaults to 60", "url": "https://example.com/rrf"},
+            )
+            assert verdict["verdict"] == "unverified"
+            assert verdict["method"] == "quote-match"
+
+            stats = await _call(client, "research_state_stats", {})
+            assert stats["chars_saved"] > 0
+
+    asyncio.run(scenario())

@@ -178,3 +178,20 @@ def get_job(conn: sqlite3.Connection, job_id: str) -> dict:
         "created": row["created"],
         "subquestions": subqs,
     }
+
+
+def gaps(conn: sqlite3.Connection, job_id: str) -> dict:
+    """Which subquestions are still open — the input to an honest finish."""
+    job = get_job(conn, job_id)
+    open_subqs = [
+        {"subq_id": s["subq_id"], "text": s["text"]}
+        for s in job["subquestions"]
+        if s["status"] == "open"
+    ]
+    return {
+        "job_id": job_id,
+        "topic": job["topic"],
+        "open": open_subqs,
+        "closed": len(job["subquestions"]) - len(open_subqs),
+        "total": len(job["subquestions"]),
+    }

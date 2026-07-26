@@ -15,6 +15,8 @@ import sqlite3
 import structlog
 from fastmcp import FastMCP
 
+from datetime import date
+
 from . import briefs, config, db, fragments, issued, metrics, state
 
 log = structlog.get_logger(__name__)
@@ -50,13 +52,15 @@ def research_start(topic: str) -> dict:
 
     Call this first, before searching. The job_id is what makes the plan
     survive a session restart. `similar_briefs` will list past briefs on the
-    same topic once the brief library lands (stage 2); it is empty for now.
+    same topic — if one of them already answers the question, read that file
+    and stop: a repeat question is supposed to cost nothing.
 
     Args:
         topic: The research question in the user's own words.
     """
-    job = state.start_job(connection(), topic)
-    return {**job, "similar_briefs": []}
+    conn = connection()
+    job = state.start_job(conn, topic)
+    return {**job, "similar_briefs": briefs.search(conn, topic)}
 
 
 @mcp.tool
@@ -155,6 +159,106 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
         "paragraphs_total": paragraphs_total,
         "fragments": found,
     }
+
+
+@mcp.tool
+def research_gaps(job_id: str) -> dict:
+    """Which subquestions of this job are still open.
+
+    Call this before finishing. Anything still open must either be closed with
+    `research_mark` or written into `gaps` when you finish — research does not
+    get to quietly stop at the point the model feels done.
+
+    Args:
+        job_id: From `research_start`.
+    """
+    try:
+        return state.gaps(connection(), job_id)
+    except state.UnknownJob:
+        return {"error": "unknown_job", "job_id": job_id}
+
+
+@mcp.tool
+def research_finish(
+    job_id: str,
+    summary: str,
+    claims: list[dict],
+    gaps: list[str] | None = None,
+) -> dict:
+    """Store the finished brief. Rejects any factual claim without a real quote.
+
+    Work your conclusions out first, in prose, and only then call this to record
+    them. Assembling findings while filling in fields measurably costs reasoning
+    quality, so treat this as the packing step, not the thinking step.
+
+    Args:
+        job_id: From `research_start`.
+        summary: The synthesis, in prose. Not claim-checked.
+        claims: One dict per claim: `{text, kind, fragment_id, quote}`. `kind` is
+            "fact" or "assumption". A fact needs a `fragment_id` from
+            `fragments_for` and a `quote` copied verbatim out of that fragment —
+            the server checks the quote is really there, so pointing at an
+            unrelated fragment fails. An assumption needs neither and is printed
+            in the brief as an assumption.
+        gaps: What you could not answer. Required while any subquestion is open.
+    """
+    conn = connection()
+    gaps = gaps or []
+    try:
+        job = state.get_job(conn, job_id)
+    except state.UnknownJob:
+        return {"error": "unknown_job", "job_id": job_id}
+
+    still_open = state.gaps(conn, job_id)["open"]
+    if still_open and not gaps:
+        return {
+            "error": "unclosed_subquestions",
+            "open": still_open,
+            "hint": "close them with research_mark, or say what you could not find in `gaps`",
+        }
+
+    try:
+        return briefs.save(
+            conn,
+            job_id=job_id,
+            topic=job["topic"],
+            summary=summary,
+            claims=claims,
+            gaps=gaps,
+            brief_dir=config.brief_dir(),
+            today=date.today().isoformat(),
+        )
+    except briefs.InvalidBrief as exc:
+        return {"error": "invalid_brief", "problems": exc.problems}
+
+
+@mcp.tool
+def brief_search(query: str, limit: int = 3) -> dict:
+    """Search briefs from past research. Returns paths and snippets, not bodies.
+
+    Args:
+        query: The topic in natural language.
+        limit: How many briefs to return.
+    """
+    return {"briefs": briefs.search(connection(), query, limit=limit)}
+
+
+@mcp.tool
+def verify_claim(claim: str, url: str) -> dict:
+    """Fetch the fragments of a page most relevant to a claim, for you to judge.
+
+    `verdict` is always "unverified" today: this server has no model, so the
+    judgement is yours. The field exists so that when a local entailment model
+    moves in behind this tool, nothing calling it has to change.
+
+    Args:
+        claim: The statement to check.
+        url: The page it supposedly came from.
+    """
+    found = fragments_for(url=url, query=claim, k=3)
+    if "error" in found:
+        return found
+    return {**found, "verdict": "unverified", "confidence": None, "method": "quote-match"}
 
 
 @mcp.tool

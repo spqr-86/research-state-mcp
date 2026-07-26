@@ -114,3 +114,20 @@ def test_init_schema_is_idempotent(conn):
 def test_get_job_rejects_unknown_job(conn):
     with pytest.raises(state.UnknownJob):
         state.get_job(conn, "nope")
+
+
+def test_open_subquestions_are_reported(conn):
+    job_id = state.start_job(conn, "topic")["job_id"]
+    state.set_plan(conn, job_id, ["a", "b"])
+    state.mark(conn, job_id, 1, "answered")
+    gaps = state.gaps(conn, job_id)
+    assert gaps["open"] == [{"subq_id": 2, "text": "b"}]
+    assert gaps["closed"] == 1
+    assert gaps["total"] == 2
+
+
+def test_gaps_on_a_fully_closed_job(conn):
+    job_id = state.start_job(conn, "topic")["job_id"]
+    state.set_plan(conn, job_id, ["a"])
+    state.mark(conn, job_id, 1, "answered")
+    assert state.gaps(conn, job_id)["open"] == []
