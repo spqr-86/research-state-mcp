@@ -175,3 +175,19 @@ def test_cached_page_reads_a_write_protected_cache(foreign_cache):
         )
     finally:
         foreign_cache.chmod(0o644)
+
+
+def test_fragment_carries_offsets_and_context():
+    text = "alpha one\n\nbeta two\n\ngamma three"
+    result = fragments.extract(text, "beta", k=1, neighbours=0)
+    frag = result[0]
+    assert text[frag["char_start"] : frag["char_end"]] == frag["text"]
+    assert frag["prefix"].endswith("alpha one\n\n")
+    assert frag["suffix"].startswith("\n\ngamma three")
+
+
+def test_context_is_capped():
+    text = ("x" * 200) + "\n\nneedle here\n\n" + ("y" * 200)
+    frag = fragments.extract(text, "needle", k=1, neighbours=0)[0]
+    assert len(frag["prefix"]) == fragments.ANCHOR_CONTEXT
+    assert len(frag["suffix"]) == fragments.ANCHOR_CONTEXT

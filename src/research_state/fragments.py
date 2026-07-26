@@ -28,11 +28,29 @@ _META_PREFIX = "\x01META\x01"
 
 DEFAULT_K = 5
 DEFAULT_NEIGHBOURS = 1
+ANCHOR_CONTEXT = 32
 
 
 def split_paragraphs(text: str) -> list[str]:
     """Split on blank lines, dropping empties and trailing whitespace."""
     return [p.strip() for p in _PARAGRAPH_SPLIT.split(text or "") if p.strip()]
+
+
+def split_paragraphs_with_spans(text: str) -> list[tuple[str, int, int]]:
+    """Paragraphs plus their exact character span in the original text.
+
+    Spans are what makes a fragment re-anchorable later, so `extract` uses this
+    and slices the page verbatim instead of rejoining stripped paragraphs.
+    """
+    spans: list[tuple[str, int, int]] = []
+    for match in re.finditer(r"[^\n](?:.*?)(?=\n\s*\n|\Z)", text or "", re.DOTALL):
+        chunk = match.group()
+        stripped = chunk.strip()
+        if not stripped:
+            continue
+        start = match.start() + chunk.index(stripped)
+        spans.append((stripped, start, start + len(stripped)))
+    return spans
 
 
 def _fts_query(query: str) -> str:
@@ -53,7 +71,8 @@ def extract(
     neighbours: int = DEFAULT_NEIGHBOURS,
 ) -> list[dict]:
     """Return at most `k` fragments of `text` most relevant to `query`."""
-    paragraphs = split_paragraphs(text)
+    spans = split_paragraphs_with_spans(text)
+    paragraphs = [span[0] for span in spans]
     match = _fts_query(query)
     if not paragraphs or not match:
         return []
@@ -75,17 +94,20 @@ def extract(
         conn.close()
 
     hits = [(int(rowid), -float(rank)) for rowid, rank in rows]
-    return _windows(paragraphs, hits, neighbours)
+    return _windows(spans, text, hits, neighbours)
 
 
 def _windows(
-    paragraphs: list[str], hits: list[tuple[int, float]], neighbours: int
+    spans: list[tuple[str, int, int]],
+    text: str,
+    hits: list[tuple[int, float]],
+    neighbours: int,
 ) -> list[dict]:
     """Widen each hit by `neighbours` paragraphs and merge overlapping windows."""
     windows: list[dict] = []
     for index, score in hits:  # hits arrive best-first
         start = max(0, index - neighbours)
-        end = min(len(paragraphs) - 1, index + neighbours)
+        end = min(len(spans) - 1, index + neighbours)
         for w in windows:
             if start <= w["end"] + 1 and end >= w["start"] - 1:
                 w["start"] = min(w["start"], start)
@@ -97,7 +119,13 @@ def _windows(
             )
 
     for w in windows:
-        w["text"] = "\n\n".join(paragraphs[w["start"] : w["end"] + 1])
+        char_start = spans[w["start"]][1]
+        char_end = spans[w["end"]][2]
+        w["text"] = text[char_start:char_end]
+        w["char_start"] = char_start
+        w["char_end"] = char_end
+        w["prefix"] = text[max(0, char_start - ANCHOR_CONTEXT) : char_start]
+        w["suffix"] = text[char_end : char_end + ANCHOR_CONTEXT]
     return windows
 
 
