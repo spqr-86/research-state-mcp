@@ -1,5 +1,5 @@
-import time
 import sqlite3
+import time
 
 import pytest
 
@@ -72,7 +72,7 @@ def test_connection_is_usable_from_another_thread(tmp_path):
     def worker():
         try:
             db.write(conn, lambda c: c.execute("INSERT INTO t VALUES ('from-thread')"))
-        except Exception as exc:  # noqa: BLE001 - the test is about which exception escapes
+        except Exception as exc:
             errors.append(exc)
 
     t = threading.Thread(target=worker)

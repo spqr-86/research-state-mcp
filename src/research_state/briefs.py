@@ -21,9 +21,8 @@ from pathlib import Path
 
 import structlog
 
-from . import db
+from . import db, issued
 from . import fragments as fragments_module
-from . import issued
 
 log = structlog.get_logger(__name__)
 
