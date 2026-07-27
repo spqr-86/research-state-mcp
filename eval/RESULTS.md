@@ -87,3 +87,88 @@ whole page, not a substitute for structure. That is why `fragments_for` returns 
   than flatters.
 - One example was skipped: a `wikipedia_link_*` field held a search URL rather
   than an article.
+
+---
+
+# Citation rejection — measured results
+
+Second measurement, 2026-07-27. The fragment layer was measured above; this is
+the other half of the server — the rule that a factual claim without a verbatim
+quote from an issued fragment cannot enter a brief.
+
+## What is measured, and why not the obvious thing
+
+"How many made-up citations does it catch" is not a real question here: the check
+is exact containment after whitespace/case normalisation, so a fabricated quote
+is caught by construction. Two things are *not* settled by construction:
+
+* **fabrication that survives anyway** — a quote that is verbatim yet supports
+  nothing, or one welded together out of real wording;
+* **honest quotes that get refused** — the model meant the real sentence and
+  retyped it (curly quotes as ASCII, an en dash as a hyphen, the middle elided
+  with an ellipsis). That is the friction price of the invariant.
+
+`eval/citation_rejection.py` takes 500 real paragraphs from the FRAMES page cache,
+issues each one for real through `issued.record`, mutates its first sentence in
+eleven ways and pushes every result through the real `briefs.validate_claims`.
+Nothing is reimplemented; no LLM, no network, no cost.
+
+```bash
+uv run python eval/citation_rejection.py --limit 500
+```
+
+## Results (500 fragments)
+
+| mutation | family | n | rejected | rate |
+|---|---|---|---|---|
+| verbatim (control) | control | 500 | 0 | 0% |
+| invent | fabricated | 500 | 500 | 100% |
+| swap_number | fabricated | 211 | 211 | 100% |
+| swap_entity | fabricated | 402 | 402 | 100% |
+| drop_word | fabricated | 488 | 488 | 100% |
+| stitch (two real halves) | fabricated | 479 | 479 | 100% |
+| trivial (4 verbatim words) | trivial | 500 | 0 | **0%** |
+| straighten_quotes | faithful | 1 | 1 | 100% |
+| plain_space (NBSP → space) | faithful | 0 | — | n/a |
+| plain_dash (– → -) | faithful | 22 | 22 | 100% |
+| ellipsis_gap (middle elided) | faithful | 479 | 479 | 100% |
+
+**Catch rate on fabrication: 100%. False-reject rate on faithful quotes: 100%.**
+
+## What this actually says
+
+1. **Fabrication does not get through.** Invented sentences, tampered numbers,
+   swapped names, a single dropped word, and quotes stitched from two real
+   fragments — all refused, without exception, on real prose.
+2. **Neither does honest citation practice.** Every faithful retyping was refused
+   too. The one that matters is `ellipsis_gap`: eliding the middle of a long
+   quote is standard citation convention, applies to 96% of fragments, and is
+   rejected every time. A model that cites correctly but abbreviates gets a hard
+   error.
+3. **The real hole is triviality, not fabrication.** Four verbatim words ("The
+   Office is the") pass 100% of the time and support nothing. The check verifies
+   that a quote *came from* the fragment, never that it *carries* the claim.
+   That gap is by design (Constitution §1 — no model in the server), but until
+   now it had no number on it.
+
+## Honest caveats
+
+- **The typography sample is thin.** Wikipedia extracts are typographically plain:
+  curly quotes applied to 1 fragment of 500, dashes to 22, NBSP to none. The
+  ellipsis figure (479 cases) is solid; the rest is directional. Real web pages
+  are far dirtier, so the true false-reject rate is likely *higher*, not lower.
+- `plain_space` never fired on this corpus, so "whitespace normalisation absorbs
+  NBSP" rests on the unit test, not on measured data.
+- One mutation per fragment, always the first sentence. A model quoting from the
+  middle of a paragraph is not represented.
+- All families are equally weighted here; how often each occurs in real model
+  output is unknown, so the two headline rates are per-mutation, not per-brief.
+
+## Open after this
+
+- Decide whether to accept ellipsis-elided quotes (split on `…`/`...` and require
+  the parts in order inside one fragment). It removes the main friction without
+  admitting foreign wording — but it changes the invariant, so it is Petr's call.
+- Nothing measures whether a quote *supports* its claim. That needs a judge, and
+  a judge needs a model, which the constitution keeps out of the server. The
+  honest option is a minimum-quote-length floor, measured, not guessed.
