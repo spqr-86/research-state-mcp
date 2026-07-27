@@ -172,3 +172,29 @@ uv run python eval/citation_rejection.py --limit 500
 - Nothing measures whether a quote *supports* its claim. That needs a judge, and
   a judge needs a model, which the constitution keeps out of the server. The
   honest option is a minimum-quote-length floor, measured, not guessed.
+
+## After the fix (same day)
+
+The ellipsis case was acted on: `briefs.quote_supported` now splits a quote on
+`…`/`...` and requires every piece verbatim, **in order and without reusing the
+same words**, inside one fragment. Rerun over the same 500 fragments:
+
+| mutation | before | after |
+|---|---|---|
+| ellipsis_gap (rejected) | 100% | **0%** |
+| all five fabrication types | 100% | 100% |
+| stitch (two real halves) | 100% | 100% |
+| verbatim control | 0% | 0% |
+
+**Catch rate 100%, false-reject rate 4.6%** — what remains is entirely typography
+(22 dashes, 1 curly quote out of 500), untouched by this change.
+
+The trade-off, stated plainly: an elided quote can now join two *distant* real
+sentences of the same fragment and imply a relation between them that the page
+does not assert. Ordering and non-overlap bound this to one fragment's own
+wording in its own sequence; it does not eliminate it. Welding across two
+fragments stays impossible, and that is the case the eval covers.
+
+One eval artifact was fixed alongside: cached pages that open mid-quotation
+("... two gentlemen come in") made `pick_quote` return a bare `...`, which is not
+a quote and skewed the control row by one.

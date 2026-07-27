@@ -28,6 +28,7 @@ log = structlog.get_logger(__name__)
 
 KINDS = ("fact", "assumption")
 _WS = re.compile(r"\s+")
+_ELLIPSIS = re.compile(r"\s*(?:…|\.\.\.)\s*")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS briefs (
@@ -68,6 +69,31 @@ def _normalise(text: str) -> str:
     return _WS.sub(" ", text or "").strip().casefold()
 
 
+def quote_supported(exact: str, quote: str | None) -> bool:
+    """True when `quote` is carried verbatim by `exact`.
+
+    An ellipsis (`…` or `...`) may stand for elided text — standard citation
+    practice, and refused in 479 of 500 real cases before this existed
+    (eval/RESULTS.md). Every piece around the ellipsis must still occur
+    verbatim, and the pieces must occur **in order and without reusing the same
+    words**, which is what keeps a quote welded out of two distant sentences
+    from passing.
+    """
+    haystack = _normalise(exact)
+    pieces = [
+        piece for piece in (_normalise(part) for part in _ELLIPSIS.split(quote or "")) if piece
+    ]
+    if not pieces:
+        return False
+    cursor = 0
+    for piece in pieces:
+        found = haystack.find(piece, cursor)
+        if found < 0:
+            return False
+        cursor = found + len(piece)
+    return True
+
+
 def validate_claims(conn: sqlite3.Connection, claims: list[dict]) -> list[dict]:
     """Return one problem per unacceptable claim. An empty list means valid."""
     problems: list[dict] = []
@@ -98,7 +124,7 @@ def validate_claims(conn: sqlite3.Connection, claims: list[dict]) -> list[dict]:
                 }
             )
             continue
-        if _normalise(quote) not in _normalise(fragment["exact"]):
+        if not quote_supported(fragment["exact"], quote):
             problems.append(
                 {
                     "index": index,
@@ -136,9 +162,7 @@ def _unique_path(brief_dir: Path, today: str, topic: str) -> Path:
     return path
 
 
-def render(
-    topic: str, summary: str, claims: list[dict], gaps: list[str], sources: dict
-) -> str:
+def render(topic: str, summary: str, claims: list[dict], gaps: list[str], sources: dict) -> str:
     """The markdown a human reads. Generated, never hand-written."""
     lines = [f"# {topic}", "", summary, ""]
     if claims:
@@ -155,9 +179,7 @@ def render(
     if gaps:
         lines += ["## Gaps", ""] + [f"- {gap}" for gap in gaps] + [""]
     if sources:
-        lines += ["## Sources", ""] + [
-            f"- <{url}>" for url in sorted(set(sources.values()))
-        ]
+        lines += ["## Sources", ""] + [f"- <{url}>" for url in sorted(set(sources.values()))]
     return "\n".join(lines).rstrip() + "\n"
 
 

@@ -100,10 +100,7 @@ def test_a_fact_without_a_citation_is_rejected(conn):
 
 
 def test_an_assumption_needs_no_citation(conn):
-    assert (
-        briefs.validate_claims(conn, [{"text": "probably x", "kind": "assumption"}])
-        == []
-    )
+    assert briefs.validate_claims(conn, [{"text": "probably x", "kind": "assumption"}]) == []
 
 
 def test_an_unknown_kind_is_rejected(conn):
@@ -262,3 +259,108 @@ def test_search_never_returns_the_brief_body(conn, tmp_path):
     hit = briefs.search(conn, "rrf")[0]
     assert len(hit["snippet"]) < 500
     assert "body" not in hit
+
+
+# --- elided quotes ----------------------------------------------------------
+#
+# Skipping the middle of a long quote is normal citation practice, and the eval
+# (eval/RESULTS.md) showed it was refused in 479 of 500 cases. Every piece must
+# still be verbatim, and the pieces must appear in the fragment in the order
+# they are written — that is what keeps foreign wording out.
+
+
+def test_a_quote_with_an_elided_middle_passes(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k … in Elasticsearch.",
+            }
+        ],
+    )
+    assert problems == []
+
+
+def test_three_dots_work_the_same_as_an_ellipsis(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k ... in Elasticsearch.",
+            }
+        ],
+    )
+    assert problems == []
+
+
+def test_elided_pieces_out_of_order_are_rejected(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "in Elasticsearch … The constant k",
+            }
+        ],
+    )
+    assert problems[0]["reason"] == "quote_not_found"
+
+
+def test_an_elided_quote_with_one_invented_piece_is_rejected(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 42",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k … in Solr.",
+            }
+        ],
+    )
+    assert problems[0]["reason"] == "quote_not_found"
+
+
+def test_pieces_may_not_overlap_the_same_words_twice(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "defaults to 60 … defaults to 60",
+            }
+        ],
+    )
+    assert problems[0]["reason"] == "quote_not_found"
+
+
+def test_a_bare_ellipsis_is_not_a_quote(conn, fid):
+    problems = briefs.validate_claims(
+        conn, [{"text": "k is 60", "kind": "fact", "fragment_id": fid, "quote": " … "}]
+    )
+    assert problems[0]["reason"] == "quote_not_found"
+
+
+def test_a_quote_that_is_only_leading_ellipsis_still_has_to_match(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "… defaults to 60 …",
+            }
+        ],
+    )
+    assert problems == []

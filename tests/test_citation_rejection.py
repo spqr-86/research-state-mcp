@@ -242,3 +242,13 @@ def test_evaluate_never_rejects_the_verbatim_control(conn):
     control = next(row for row in report.rows() if row.name == "verbatim")
     assert control.rejected == 0
     assert control.applicable == 1
+
+
+def test_a_leading_ellipsis_is_not_taken_for_a_sentence():
+    """Real cached pages start mid-quotation: "... two gentlemen come in, ..."."""
+    quote = cr.pick_quote("... two gentlemen come in, leading a tiny lady. She may be.")
+    assert quote == "two gentlemen come in, leading a tiny lady."
+
+
+def test_a_fragment_with_no_words_yields_no_quote():
+    assert cr.pick_quote("... . ...") is None

@@ -49,6 +49,7 @@ EVAL_FETCHED_AT = 1_700_000_000
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s")
 _DIGITS = re.compile(r"\d+")
+_WORDISH = re.compile(r"\w")
 _MID_CAPITAL = re.compile(r"(?<=\w\s)\b[A-Z][a-z]{2,}\b")
 _CURLY = {"“": '"', "”": '"', "‘": "'", "’": "'"}  # noqa: RUF001
 _EXOTIC_SPACE = re.compile("[    ]")  # noqa: RUF001
@@ -64,11 +65,16 @@ INVENTED = (
 
 
 def pick_quote(text: str) -> str | None:
-    """The first sentence — what a model actually cites, and verbatim by design."""
-    stripped = (text or "").strip()
-    if not stripped:
-        return None
-    return _SENTENCE_END.split(stripped, maxsplit=1)[0].strip() or None
+    """The first sentence — what a model actually cites, and verbatim by design.
+
+    Cached pages start mid-quotation often enough ("... two gentlemen come in")
+    that a naive sentence split hands back a bare "..." — not a quote, and it
+    poisons the control row. A candidate with no word characters is skipped.
+    """
+    for candidate in _SENTENCE_END.split((text or "").strip()):
+        if _WORDISH.search(candidate):
+            return candidate.strip()
+    return None
 
 
 # --- fabricated: the quote no longer matches the source ---------------------
