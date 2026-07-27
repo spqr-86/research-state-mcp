@@ -35,7 +35,7 @@ def test_a_fact_with_a_verbatim_quote_passes(conn, fid):
                 "text": "k is 60",
                 "kind": "fact",
                 "fragment_id": fid,
-                "quote": "k defaults to 60",
+                "quote": "The constant k defaults to 60",
             }
         ],
     )
@@ -50,7 +50,7 @@ def test_a_quote_absent_from_the_fragment_is_rejected(conn, fid):
                 "text": "k is 42",
                 "kind": "fact",
                 "fragment_id": fid,
-                "quote": "k defaults to 42",
+                "quote": "The constant k defaults to 42",
             }
         ],
     )
@@ -65,7 +65,7 @@ def test_one_character_off_is_still_rejected(conn, fid):
                 "text": "k is 60",
                 "kind": "fact",
                 "fragment_id": fid,
-                "quote": "k defaults to 6O",
+                "quote": "The constant k defaults to 6O",
             }
         ],
     )
@@ -80,7 +80,7 @@ def test_whitespace_and_case_differences_are_tolerated(conn, fid):
                 "text": "k is 60",
                 "kind": "fact",
                 "fragment_id": fid,
-                "quote": "K  defaults\nto 60",
+                "quote": "The  constant K  defaults\nto 60",
             }
         ],
     )
@@ -89,7 +89,15 @@ def test_whitespace_and_case_differences_are_tolerated(conn, fid):
 
 def test_unknown_fragment_is_rejected(conn):
     problems = briefs.validate_claims(
-        conn, [{"text": "x", "kind": "fact", "fragment_id": "0" * 16, "quote": "x"}]
+        conn,
+        [
+            {
+                "text": "x",
+                "kind": "fact",
+                "fragment_id": "0" * 16,
+                "quote": "five whole words right here",
+            }
+        ],
     )
     assert problems[0]["reason"] == "unknown_fragment"
 
@@ -123,7 +131,12 @@ def test_save_writes_a_markdown_file_and_returns_its_path(conn, fid, tmp_path):
         topic="How does RRF work",
         summary="RRF fuses ranked lists.",
         claims=[
-            {"text": "k is 60", "kind": "fact", "fragment_id": fid, "quote": "k defaults to 60"}
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k defaults to 60",
+            }
         ],
         gaps=["nothing on Russian-language sources"],
         brief_dir=tmp_path,
@@ -345,10 +358,12 @@ def test_pieces_may_not_overlap_the_same_words_twice(conn, fid):
 
 
 def test_a_bare_ellipsis_is_not_a_quote(conn, fid):
+    """Nothing between the dots is nothing to check — refused as too short."""
     problems = briefs.validate_claims(
         conn, [{"text": "k is 60", "kind": "fact", "fragment_id": fid, "quote": " … "}]
     )
-    assert problems[0]["reason"] == "quote_not_found"
+    assert problems[0]["reason"] == "quote_too_short"
+    assert problems[0]["words"] == 0
 
 
 def test_a_quote_that_is_only_leading_ellipsis_still_has_to_match(conn, fid):
@@ -359,8 +374,78 @@ def test_a_quote_that_is_only_leading_ellipsis_still_has_to_match(conn, fid):
                 "text": "k is 60",
                 "kind": "fact",
                 "fragment_id": fid,
-                "quote": "… defaults to 60 …",
+                "quote": "… constant k defaults to 60 …",
             }
         ],
     )
     assert problems == []
+
+
+# --- the length floor -------------------------------------------------------
+#
+# A four-word verbatim quote passed 100% of the time and supported nothing
+# (eval/RESULTS.md). Five words is where ambiguity and honest cost cross on the
+# measured corpus: 4.2% of openings still occur in another fragment, 4.2% of
+# real sentences are shorter than the floor.
+
+
+def test_a_quote_shorter_than_the_floor_is_rejected(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k defaults",
+            }
+        ],
+    )
+    assert problems[0]["reason"] == "quote_too_short"
+    assert problems[0]["words"] == 4
+
+
+def test_a_quote_exactly_at_the_floor_passes(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k defaults to",
+            }
+        ],
+    )
+    assert problems == []
+
+
+def test_the_floor_counts_words_across_an_ellipsis(conn, fid):
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 60",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "The constant k … to 60",
+            }
+        ],
+    )
+    assert problems == []
+
+
+def test_a_too_short_quote_is_reported_before_it_is_matched(conn, fid):
+    """Length is cheap to check and the clearer complaint — it wins."""
+    problems = briefs.validate_claims(
+        conn,
+        [
+            {
+                "text": "k is 42",
+                "kind": "fact",
+                "fragment_id": fid,
+                "quote": "never on the page",
+            }
+        ],
+    )
+    assert problems[0]["reason"] == "quote_too_short"

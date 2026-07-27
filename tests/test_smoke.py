@@ -163,7 +163,7 @@ def test_brief_lifecycle(wired, tmp_path, monkeypatch):
                             "text": "k is 42",
                             "kind": "fact",
                             "fragment_id": fid,
-                            "quote": "k defaults to 42",
+                            "quote": "The constant k defaults to 42",
                         }
                     ],
                     "gaps": ["none"],

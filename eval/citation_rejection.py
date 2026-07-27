@@ -43,7 +43,10 @@ MIN_FRAGMENT_CHARS = 120
 TRIVIAL_WORDS = 4
 DROP_MIN_WORDS = 4
 STITCH_MIN_WORDS = 4
-ELLIPSIS_MIN_WORDS = 6
+ELLIPSIS_KEEP_WORDS = 3
+# Keep enough words on both sides to clear briefs.MIN_QUOTE_WORDS, or this row
+# would measure the length floor instead of the ellipsis rule.
+ELLIPSIS_MIN_WORDS = 2 * ELLIPSIS_KEEP_WORDS + 1
 EVAL_URL = "https://eval.invalid/page"
 EVAL_FETCHED_AT = 1_700_000_000
 
@@ -155,7 +158,8 @@ def ellipsis_gap(text: str) -> str | None:
     words = text.split()
     if len(words) < ELLIPSIS_MIN_WORDS:
         return None
-    return " ".join(words[:2]) + " … " + " ".join(words[-2:])
+    keep = ELLIPSIS_KEEP_WORDS
+    return " ".join(words[:keep]) + " … " + " ".join(words[-keep:])
 
 
 # --- genuine but worthless ---------------------------------------------------

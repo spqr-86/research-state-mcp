@@ -198,3 +198,67 @@ fragments stays impossible, and that is the case the eval covers.
 One eval artifact was fixed alongside: cached pages that open mid-quotation
 ("... two gentlemen come in") made `pick_quote` return a bare `...`, which is not
 a quote and skewed the control row by one.
+
+---
+
+# Quote-length floor — where it has to sit
+
+Third measurement, 2026-07-27. `citation_rejection.py` left one hole: a four-word
+verbatim quote ("The Office is the") passed 100% of the time and supported
+nothing. A minimum length is the obvious answer; `eval/quote_floor.py` prices it
+instead of guessing it.
+
+```bash
+uv run python eval/quote_floor.py --limit 500
+```
+
+Two rates that move in opposite directions, over 500 real paragraphs and the
+1838 real sentences inside them:
+
+* **ambiguous** — share of opening quotes of that length that also occur verbatim
+  in *another* fragment. Wording several unrelated fragments contain cannot be
+  evidence about any one of them. It is the closest measurable stand-in for
+  "supports nothing" available to a server with no model in it.
+* **blocks honest** — share of real sentences shorter than the floor. Those are
+  truthful citations the floor forbids outright.
+
+| floor (words) | ambiguous | blocks honest |
+|---|---|---|
+| 2 | 55.2% | 1.1% |
+| 3 | 18.0% | 2.3% |
+| 4 | 7.4% | 3.3% |
+| **5** | **4.2%** | **4.2%** |
+| 6 | 3.2% | 5.0% |
+| 8 | 1.2% | 7.9% |
+| 10 | 0.6% | 12.7% |
+| 15 | 0.4% | 30.1% |
+| 20 | 0.0% | 51.9% |
+
+**Five words is where the curves cross**, and that is the value now in
+`briefs.MIN_QUOTE_WORDS`. Ellipsis pieces count together, so an elided quote is
+measured on the words it actually carries. A refused claim comes back as
+`quote_too_short` with `words` and `minimum`, so the client can fix it in one step.
+
+## Rerun of the citation eval with the floor in place
+
+| mutation | before floor | after floor |
+|---|---|---|
+| trivial (4 verbatim words) | 0% rejected | **100% rejected** |
+| all five fabrication types | 100% | 100% |
+| ellipsis_gap | 0% | 0% |
+| verbatim control | 0% | **3.2%** |
+
+The control row is the honest price, and it is the point of reporting it: 16 of
+500 real opening sentences are shorter than five words, and citing one is now an
+error. That is the trade accepted here, measured rather than assumed.
+
+## Caveats
+
+- Ambiguity is measured within this 500-paragraph corpus. A larger corpus can
+  only make short quotes look *more* ambiguous, so five words is a floor on the
+  floor, not a ceiling.
+- Both rates come from *opening* quotes and whole sentences; a model quoting a
+  clause from mid-paragraph is not represented.
+- A length floor removes the degenerate case, not the general one: five
+  distinctive words can still be quoted in support of a claim they do not carry.
+  Nothing here measures support, and nothing in this server can.

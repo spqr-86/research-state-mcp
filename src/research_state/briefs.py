@@ -30,6 +30,13 @@ KINDS = ("fact", "assumption")
 _WS = re.compile(r"\s+")
 _ELLIPSIS = re.compile(r"\s*(?:…|\.\.\.)\s*")
 
+# Measured, not chosen by feel (eval/quote_floor.py over 500 real paragraphs):
+# below five words a quote's opening still occurs in another fragment far too
+# often to be evidence — 55% at two words, 18% at three, 7.4% at four, 4.2% at
+# five — while the cost, real sentences shorter than the floor, is 4.2% at five
+# and climbs steeply after. Five is where the two curves cross.
+MIN_QUOTE_WORDS = 5
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS briefs (
     brief_id TEXT PRIMARY KEY,
@@ -67,6 +74,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
 def _normalise(text: str) -> str:
     """Whitespace and case only — never punctuation. The check must stay literal."""
     return _WS.sub(" ", text or "").strip().casefold()
+
+
+def quote_words(quote: str | None) -> int:
+    """Words a quote actually carries — ellipsis markers are not words."""
+    return sum(len(part.split()) for part in _ELLIPSIS.split(quote or ""))
 
 
 def quote_supported(exact: str, quote: str | None) -> bool:
@@ -121,6 +133,18 @@ def validate_claims(conn: sqlite3.Connection, claims: list[dict]) -> list[dict]:
                     "index": index,
                     "reason": "unknown_fragment",
                     "fragment_id": fragment_id,
+                }
+            )
+            continue
+        words = quote_words(quote)
+        if words < MIN_QUOTE_WORDS:
+            problems.append(
+                {
+                    "index": index,
+                    "reason": "quote_too_short",
+                    "quote": quote,
+                    "words": words,
+                    "minimum": MIN_QUOTE_WORDS,
                 }
             )
             continue

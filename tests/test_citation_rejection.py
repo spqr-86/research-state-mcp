@@ -115,15 +115,21 @@ def test_plain_dash_gives_up_without_a_dash():
 
 
 def test_ellipsis_gap_elides_the_middle_of_the_quote():
-    mutated = cr.ellipsis_gap("alpha beta gamma delta epsilon zeta")
+    mutated = cr.ellipsis_gap("alpha beta gamma delta epsilon zeta eta theta")
     assert mutated is not None
-    assert mutated.startswith("alpha beta")
-    assert mutated.endswith("epsilon zeta")
+    assert mutated.startswith("alpha beta gamma")
+    assert mutated.endswith("zeta eta theta")
     assert "…" in mutated
 
 
+def test_an_elided_quote_keeps_enough_words_to_clear_the_length_floor():
+    """Otherwise this row measures the floor, not the ellipsis rule."""
+    mutated = cr.ellipsis_gap("alpha beta gamma delta epsilon zeta eta theta")
+    assert briefs.quote_words(mutated) >= briefs.MIN_QUOTE_WORDS
+
+
 def test_ellipsis_gap_gives_up_on_a_short_quote():
-    assert cr.ellipsis_gap("alpha beta gamma") is None
+    assert cr.ellipsis_gap("alpha beta gamma delta epsilon") is None
 
 
 # --- trivial but genuine ----------------------------------------------------
@@ -230,11 +236,13 @@ def test_evaluate_runs_every_mutation_over_the_given_fragments(conn):
     assert report.catch_rate() == 1.0
 
 
-def test_a_verbatim_but_worthless_quote_slips_through(conn):
+def test_a_verbatim_but_worthless_quote_is_now_stopped_by_the_length_floor(conn):
+    """Before the floor this row passed 100% of the time — that was the hole."""
     report = cr.evaluate(conn, [PARA, OTHER])
     row = next(row for row in report.rows() if row.name == "trivial")
     assert row.family is cr.Family.TRIVIAL
-    assert row.rejected == 0
+    assert row.rejected == row.applicable
+    assert cr.TRIVIAL_WORDS < briefs.MIN_QUOTE_WORDS
 
 
 def test_evaluate_never_rejects_the_verbatim_control(conn):
