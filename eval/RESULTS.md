@@ -262,3 +262,50 @@ error. That is the trade accepted here, measured rather than assumed.
 - A length floor removes the degenerate case, not the general one: five
   distinctive words can still be quoted in support of a claim they do not carry.
   Nothing here measures support, and nothing in this server can.
+
+---
+
+# Table-shaped pages — cutting on structure instead of on length
+
+Fourth measurement, 2026-07-27. The page that started this (a HuggingFace
+dataset viewer) is one enormous line of pipe-separated cells: no blank lines, no
+sentence-per-line, nothing for `fragments` to split on. The 2026-07-26 brake cut
+such a line every 2000 characters, blindly — mid-cell and mid-word.
+
+`--table-text` reshapes each cached FRAMES article into exactly that form (every
+word kept, only the shape changed), so the case can be measured rather than
+argued about:
+
+```bash
+uv run python eval/frames_recall.py --limit 100 --k 5 --table-text
+```
+
+## Before and after
+
+| | recall (of those present) | text returned |
+|---|---|---|
+| blind 2000-char slices, k=5 | 80.0% | **56.2%** |
+| cut on cell boundaries, k=5 | 48.9% | **17.5%** |
+| cut on cell boundaries, k=10 | 73.3% | 33.0% |
+| cut on cell boundaries, k=20 | **86.7%** | 56.9% |
+
+Read the first and last rows together: **at the same amount of returned text —
+about 56% of the page — recall goes from 80.0% to 86.7%.** The old cutter looked
+respectable at k=5 only because each "fragment" was a 2000-character slab
+carrying dozens of unrelated cells; it bought recall by handing back half the
+page, which is the exact failure this project exists to prevent. At the default
+k=5 the same page now costs 17.5% of the text instead of 56.2%.
+
+The rule: a line carrying three or more pipes is treated as table structure and
+split cell by cell; other oversized lines are cut at the latest sentence end or
+space that fits; a run with no boundary at all is still cut to size.
+
+## Caveats
+
+- The corpus is Wikipedia prose *reshaped* into a table, not real tables. Cell
+  contents are therefore sentence-like and unusually rich; a real table of dates
+  and numbers gives bm25 much less to rank on.
+- Pipe-separated is one table dialect. Tab-separated and fixed-width tables fall
+  through to the sentence/space cutter and were not measured.
+- `k` now buys cells rather than slabs, so the old `k` values are not comparable
+  across the change — the table above pairs them by returned text, not by `k`.

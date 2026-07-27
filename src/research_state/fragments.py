@@ -37,6 +37,17 @@ ANCHOR_CONTEXT = 32
 # characters.
 MAX_PARAGRAPH_CHARS = 2000
 
+# Where an oversized line may be cut, best boundary first. Each matches as late
+# in the window as it can, so a piece stays as large as the cap allows.
+_CUT_PATTERNS = (
+    re.compile(r".*[.!?]\s"),  # a sentence end
+    re.compile(r".*\s"),  # any whitespace
+)
+
+# A line carrying this many pipes is a table, not prose with a stray character.
+CELL = "|"
+MIN_CELLS = 3
+
 
 def split_paragraphs(text: str) -> list[str]:
     """Split on blank lines, then cut any block too large to be one fragment."""
@@ -79,17 +90,64 @@ def _cut_to_size(block: str, offset: int) -> list[tuple[str, int, int]]:
 
 
 def _cut_by_chars(piece: str, offset: int) -> list[tuple[str, int, int]]:
-    """Last resort for a single line longer than the cap: fixed-width slices."""
-    if len(piece) <= MAX_PARAGRAPH_CHARS:
-        return [(piece, offset, offset + len(piece))]
-    return [
-        (
-            piece[i : i + MAX_PARAGRAPH_CHARS],
-            offset + i,
-            offset + i + len(piece[i : i + MAX_PARAGRAPH_CHARS]),
-        )
-        for i in range(0, len(piece), MAX_PARAGRAPH_CHARS)
-    ]
+    """Cut one oversized line, on its own structure wherever it has any.
+
+    A table page arrives as a single enormous line of pipe-separated cells;
+    slicing it every MAX_PARAGRAPH_CHARS lands mid-cell and mid-word, and the
+    ranked result then drags in half the page (56% measured — eval/RESULTS.md).
+    A cell-structured line is split cell by cell; anything else is cut at the
+    latest sentence end or space that fits. A run with no boundary at all is
+    still cut to size — returning a whole page is the one thing that must not
+    happen.
+    """
+    if piece.count(CELL) >= MIN_CELLS:
+        return _cut_on_cells(piece, offset)
+    return _cut_on_text(piece, offset)
+
+
+def _cut_on_cells(line: str, offset: int) -> list[tuple[str, int, int]]:
+    """One table cell, one fragment."""
+    pieces: list[tuple[str, int, int]] = []
+    cursor = 0
+    for cell in line.split(CELL):
+        start = cursor
+        cursor += len(cell) + len(CELL)
+        if len(cell) > MAX_PARAGRAPH_CHARS:
+            pieces.extend(_cut_on_text(cell, offset + start))
+            continue
+        pieces.extend(_trimmed(cell, offset + start))
+    return pieces
+
+
+def _cut_on_text(piece: str, offset: int) -> list[tuple[str, int, int]]:
+    """Cut prose at the latest sentence end or space that fits in the cap."""
+    pieces: list[tuple[str, int, int]] = []
+    cursor = 0
+    while len(piece) - cursor > MAX_PARAGRAPH_CHARS:
+        window = piece[cursor : cursor + MAX_PARAGRAPH_CHARS]
+        cut = _boundary(window)
+        pieces.extend(_trimmed(piece[cursor : cursor + cut], offset + cursor))
+        cursor += cut
+    pieces.extend(_trimmed(piece[cursor:], offset + cursor))
+    return pieces
+
+
+def _boundary(window: str) -> int:
+    """Where to cut this window: the latest sentence or space boundary in it."""
+    for pattern in _CUT_PATTERNS:
+        found = pattern.search(window)
+        if found is not None:
+            return found.end()
+    return len(window)
+
+
+def _trimmed(chunk: str, offset: int) -> list[tuple[str, int, int]]:
+    """One piece with its span, whitespace trimmed off both ends."""
+    stripped = chunk.strip()
+    if not stripped:
+        return []
+    start = offset + chunk.index(stripped)
+    return [(stripped, start, start + len(stripped))]
 
 
 def looks_unstructured(text: str) -> bool:
@@ -125,9 +183,7 @@ def extract(
     conn = sqlite3.connect(":memory:")
     try:
         conn.execute("CREATE VIRTUAL TABLE p USING fts5(body, tokenize='unicode61')")
-        conn.executemany(
-            "INSERT INTO p (rowid, body) VALUES (?, ?)", enumerate(paragraphs)
-        )
+        conn.executemany("INSERT INTO p (rowid, body) VALUES (?, ?)", enumerate(paragraphs))
         rows = conn.execute(
             "SELECT rowid, bm25(p) AS rank FROM p WHERE p MATCH ? ORDER BY rank LIMIT ?",
             (match, k),
@@ -159,9 +215,7 @@ def _windows(
                 w["end"] = max(w["end"], end)
                 break
         else:
-            windows.append(
-                {"start": start, "end": end, "paragraph_index": index, "score": score}
-            )
+            windows.append({"start": start, "end": end, "paragraph_index": index, "score": score})
 
     for w in windows:
         char_start = spans[w["start"]][1]

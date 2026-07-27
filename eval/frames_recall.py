@@ -222,6 +222,18 @@ def paragraphs_from_extract(raw: str | None) -> str:
     return "\n\n".join(line for line in lines if line)
 
 
+def as_table_line(raw: str | None) -> str:
+    """Reshape an article into the pathological page: one line of table cells.
+
+    The real case this imitates is a HuggingFace dataset viewer page — a whole
+    markdown table on a single line, no blank lines and no sentence-per-line
+    structure for `fragments` to hold on to. Every word of the page survives;
+    only its shape changes, so recall stays comparable to the other modes.
+    """
+    cells = [line.strip() for line in (raw or "").splitlines() if line.strip()]
+    return "| " + " | ".join(cells) + " |" if cells else ""
+
+
 def download_page(
     title: str,
     restructure: bool = True,
@@ -314,6 +326,7 @@ class Report:
     k: int
     neighbours: int
     raw_text: bool = False
+    text_shape: str = "paragraphs"
     total: int = 0
     skipped: int = 0
     skipped_no_links: int = 0
@@ -386,9 +399,10 @@ def evaluate(
     k: int,
     neighbours: int,
     raw_text: bool = False,
+    text_shape: str = "paragraphs",
 ) -> Report:
     """Run the fragment layer over every example and score it against the gold."""
-    report = Report(k=k, neighbours=neighbours, raw_text=raw_text)
+    report = Report(k=k, neighbours=neighbours, raw_text=raw_text, text_shape=text_shape)
 
     for row in rows:
         report.total += 1
@@ -512,6 +526,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="feed the article body in as it comes, without re-splitting it into "
         "paragraphs — measures the badly structured page instead of the tidy one",
     )
+    parser.add_argument(
+        "--table-text",
+        action="store_true",
+        help="reshape each article into one line of pipe-separated cells — the "
+        "table page that has no structure at all to split on",
+    )
     parser.add_argument("--json", type=Path, default=None, help="write the report here")
     return parser.parse_args(argv)
 
@@ -523,17 +543,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.error("frames.no_rows")
         return 1
 
-    cache_dir = args.cache_dir / ("raw" if args.raw_text else "paragraphs")
-    report = evaluate(
-        rows,
-        lambda url: page_text(
+    plain = args.raw_text or args.table_text
+    cache_dir = args.cache_dir / ("raw" if plain else "paragraphs")
+
+    def fetch(url: str) -> PageResult:
+        result = page_text(
             url,
             cache_dir,
-            lambda title: download_page(title, restructure=not args.raw_text),
-        ),
+            lambda title: download_page(title, restructure=not plain),
+        )
+        if args.table_text and result.status is PageStatus.OK:
+            return PageResult.ok(as_table_line(result.text))
+        return result
+
+    report = evaluate(
+        rows,
+        fetch,
         k=args.k,
         neighbours=args.neighbours,
         raw_text=args.raw_text,
+        text_shape="table" if args.table_text else ("raw" if args.raw_text else "paragraphs"),
     )
     _print_summary(report)
     if args.json:
@@ -544,7 +573,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _print_summary(report: Report) -> None:
     lines = [
         f"examples            {report.total}",
-        f"text mode           {'raw' if report.raw_text else 'paragraphs'}",
+        f"text mode           {report.text_shape}",
         f"skipped             {report.skipped}"
         f" (no links {report.skipped_no_links},"
         f" network {report.skipped_network},"

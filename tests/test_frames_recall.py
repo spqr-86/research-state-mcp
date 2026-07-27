@@ -826,7 +826,7 @@ def _capture_main(monkeypatch, argv, tmp_path):
     monkeypatch.setattr(fr, "load_rows", lambda limit, fetch: [{"Prompt": "q"}])
     monkeypatch.setattr(fr, "_print_summary", lambda report: None)
 
-    def fake_evaluate(rows, fetch_page, k, neighbours, raw_text=False):
+    def fake_evaluate(rows, fetch_page, k, neighbours, raw_text=False, text_shape="paragraphs"):
         seen["fetch_page"] = fetch_page
         seen["k"] = k
         seen["raw_text"] = raw_text
@@ -867,3 +867,43 @@ def test_main_keeps_the_raw_corpus_in_a_separate_cache(monkeypatch, tmp_path):
 def test_main_reports_failure_when_no_rows_load(monkeypatch, tmp_path):
     monkeypatch.setattr(fr, "load_rows", lambda limit, fetch: [])
     assert fr.main(["--cache-dir", str(tmp_path)]) == 1
+
+
+# --- table-shaped pages -----------------------------------------------------
+#
+# The pathological page the fragment layer met in the wild (a HuggingFace
+# dataset viewer) is one enormous line of pipe-separated cells. `--table-text`
+# reshapes a real article into exactly that shape so the case can be measured
+# instead of argued about.
+
+
+def test_a_page_becomes_one_line_of_pipe_separated_cells():
+    shaped = fr.as_table_line("First line.\n\nSecond line.\nThird line.")
+    assert "\n" not in shaped
+    assert shaped == "| First line. | Second line. | Third line. |"
+
+
+def test_table_shaping_keeps_every_word_of_the_page():
+    page = "Napoleon was born in 1769.\n\nHe died in 1821."
+    shaped = fr.as_table_line(page)
+    assert "born in 1769" in shaped and "died in 1821" in shaped
+
+
+def test_table_shaping_of_an_empty_page_is_empty():
+    assert fr.as_table_line("   ") == ""
+
+
+def test_the_table_text_flag_is_parsed():
+    assert fr._parse_args(["--table-text"]).table_text is True
+
+
+def test_table_text_is_recorded_in_the_report():
+    report = fr.evaluate(
+        [], lambda url: fr.PageResult.missing(), 5, 1, text_shape="table"
+    )
+    assert report.as_dict()["text_shape"] == "table"
+
+
+def test_the_summary_names_the_shape_the_pages_were_in(capsys):
+    fr._print_summary(fr.Report(k=5, neighbours=1, text_shape="table"))
+    assert "text mode           table" in capsys.readouterr().out

@@ -247,3 +247,44 @@ def test_context_is_capped():
     frag = fragments.extract(text, "needle", k=1, neighbours=0)[0]
     assert len(frag["prefix"]) == fragments.ANCHOR_CONTEXT
     assert len(frag["suffix"]) == fragments.ANCHOR_CONTEXT
+
+
+# --- cutting a single oversized line ----------------------------------------
+#
+# A table page arrives as one enormous line of pipe-separated cells. Slicing it
+# every MAX_PARAGRAPH_CHARS lands mid-cell and mid-word: measured on the FRAMES
+# corpus reshaped into that form, the server handed back 56% of the page.
+
+
+def test_a_long_line_of_cells_is_cut_on_cell_boundaries():
+    row = "| " + " | ".join(f"cell number {i} with some filler text" for i in range(200)) + " |"
+    pieces = [piece for piece, _, _ in fragments.split_paragraphs_with_spans(row)]
+    assert len(pieces) > 1
+    assert all("|" not in piece.strip("| ") for piece in pieces)
+
+
+def test_cell_boundary_pieces_keep_exact_spans():
+    row = "| " + " | ".join(f"cell number {i} with some filler text" for i in range(200)) + " |"
+    for piece, start, end in fragments.split_paragraphs_with_spans(row):
+        assert row[start:end] == piece
+
+
+def test_a_long_line_without_cells_is_cut_on_whitespace_not_mid_word():
+    line = " ".join(f"word{i}" for i in range(2000))
+    pieces = [piece for piece, _, _ in fragments.split_paragraphs_with_spans(line)]
+    assert len(pieces) > 1
+    assert all(piece.split()[-1].startswith("word") for piece in pieces)
+    assert all(piece == piece.strip() for piece in pieces)
+
+
+def test_a_long_line_with_no_separator_at_all_is_still_cut_to_size():
+    line = "x" * (fragments.MAX_PARAGRAPH_CHARS * 3)
+    pieces = [piece for piece, _, _ in fragments.split_paragraphs_with_spans(line)]
+    assert len(pieces) == 3
+    assert all(len(piece) <= fragments.MAX_PARAGRAPH_CHARS for piece in pieces)
+
+
+def test_every_piece_stays_within_the_cap():
+    row = "| " + " | ".join("a very long cell " * 20 for _ in range(50)) + " |"
+    for piece, _, _ in fragments.split_paragraphs_with_spans(row):
+        assert len(piece) <= fragments.MAX_PARAGRAPH_CHARS
