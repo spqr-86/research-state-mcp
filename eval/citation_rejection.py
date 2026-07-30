@@ -236,6 +236,10 @@ def rejected(conn: sqlite3.Connection, fragment_id: str, quote: str | None) -> b
         "kind": "fact",
         "fragment_id": fragment_id,
         "quote": quote,
+        # Labels the validator now requires on a fact. Held constant so the
+        # measurement stays about the quote check and nothing else.
+        "binding": "timeless",
+        "source_class": "primary",
     }
     return bool(briefs.validate_claims(conn, [claim]))
 
