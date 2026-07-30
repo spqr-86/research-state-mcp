@@ -309,3 +309,46 @@ space that fits; a run with no boundary at all is still cut to size.
   through to the sentence/space cutter and were not measured.
 - `k` now buys cells rather than slabs, so the old `k` values are not comparable
   across the change — the table above pairs them by returned text, not by `k`.
+
+---
+
+# How often does a fact actually expire? — hand count over three briefs
+
+The backlog item "an expiry date on the fact, not on the brief" was held back
+until there was a number behind it (CLAUDE.md, 27.07). This is that number, and
+it is a hand count, not a script.
+
+## What was counted
+
+Every claim of the three briefs in the local research library — 36 facts — was
+read and assigned one binding: what the claim is true *of*.
+
+| Binding | Share of the 36 facts | What it looked like in the briefs |
+|---|---|---|
+| `world` — current state of the world or a leaderboard | ~17% | "the best system reaches 75%", "the reigning champion is …" |
+| `dataset` — a number measured on a named model/dataset | ~40% | "23.5% → 30.0% nDCG" — true of `jina-embeddings-v2-small`, nothing else |
+| `vendor` — price, product default, limit | ~8% | "$1.02 per million tokens" |
+| `timeless` — mechanism, definition, past event | the rest (~35%) | "late chunking helps more the longer the document" |
+
+Read the first three rows together: **about two thirds of the facts we store are
+bound to something that moves**, and a sixth of them to the fastest-moving thing
+there is. That is what made a per-brief age counter useless: `age_days` averages
+a claim that never expires with one that can be false next week.
+
+The horizons the server now defaults to (dataset +365 days, vendor +90, world
++30) are **a convention, not a measurement.** Nothing here measured how long a
+benchmark number or a price actually survives; the defaults exist so an unmarked
+fact still gets some date, and the author is expected to override them.
+
+## Caveats — this is the weakest measurement in this file
+
+- **n = 36**, from three briefs written by one person on three adjacent topics
+  (RAG chunking, deep-research benchmarks, evaluation metrics). Not a sample of
+  anything.
+- **The labelling is manual and not blind, and was done by the author of the
+  change it justifies.** Borderline cases — an advice claim with an epoch
+  threshold baked in ("under 200K tokens → put it all in the prompt") — were
+  called `world` because the threshold is what dies, and someone else could
+  defensibly call them `timeless`. Shares are reported rounded for that reason.
+- Nothing was re-fetched: no claim was checked against its source to see whether
+  it *had* already expired. This counts exposure, not decay.

@@ -106,6 +106,12 @@ inside a transaction**.
       (`research` keeps its brief-returning behaviour — it is used for general web
       search across the whole system, so the fetcher became a separate agent)
 - [ ] Use it on one real research end-to-end through the MCP layer
+- [x] Per-fact expiry: `binding` / `bound_to` / `recheck_after` on a claim, default
+      horizons from the binding (convention, see `eval/RESULTS.md`), freshness counters
+      in every search hit, `brief_claims` migrated in place for the live DB
+- [x] Source quality, the mechanical half: `source_class` on a claim plus `warnings`
+      (`secondary_only`, `unique_domain`, `single_domain_brief`) returned by
+      `research_finish` — warn, never refuse
 - [ ] Stage 3: local NLI encoder inside `verify_claim` (measure first, decide after)
 
 ## 8. Open decisions
@@ -120,6 +126,10 @@ inside a transaction**.
   misses a paragraph saying "Вступление". Seen on a real Wikipedia page in stage 1.
   Cheap fixes before reaching for embeddings: a snowball stemmer, an FTS5 trigram
   tokenizer, or prefix-matching the query tokens. Not fixed yet — measure first.
+- **Recheck horizons** (dataset +365 days, vendor +90, world +30) are a convention;
+  nothing measured how long a benchmark number or a price stays true.
+- **Re-fetching a page and diffing it against the quote snapshot** — catches a source
+  being rewritten, not a claim becoming false. Not started.
 - **Table-shaped paragraphs.** A Wikipedia infobox is one huge "paragraph", so a hit on
   it returns ~2 KB. Consider splitting oversized paragraphs before ranking.
 

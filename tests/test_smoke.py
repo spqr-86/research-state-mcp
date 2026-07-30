@@ -73,9 +73,9 @@ def test_full_stage_one_path(wired):
                 "fragments_for",
             } <= names
 
-            job_id = (
-                await _call(client, "research_start", {"topic": "how does RRF work"})
-            )["job_id"]
+            job_id = (await _call(client, "research_start", {"topic": "how does RRF work"}))[
+                "job_id"
+            ]
 
             plan = await _call(
                 client,
@@ -109,9 +109,7 @@ def test_full_stage_one_path(wired):
                 {"job_id": job_id, "subq_id": 1, "answer": "k defaults to 60"},
             )
             assert marked["closed"] == 1
-            assert marked["open_subquestions"] == [
-                {"subq_id": 2, "text": "does it normalise"}
-            ]
+            assert marked["open_subquestions"] == [{"subq_id": 2, "text": "does it normalise"}]
 
             miss = await _call(
                 client,
@@ -196,6 +194,9 @@ def test_brief_lifecycle(wired, tmp_path, monkeypatch):
                             "kind": "fact",
                             "fragment_id": fid,
                             "quote": "constant k defaults to 60",
+                            "binding": "dataset",
+                            "bound_to": "Elasticsearch RRF",
+                            "source_class": "secondary",
                         }
                     ],
                     "gaps": ["did not check whether it normalises"],
@@ -203,9 +204,13 @@ def test_brief_lifecycle(wired, tmp_path, monkeypatch):
             )
             assert saved["path"].endswith(".md")
             assert len(str(saved)) < 2000  # a path and counts, not the brief itself
+            # a retelling is warned about, not refused
+            assert "secondary_only" in [w["reason"] for w in saved["warnings"]]
 
             hits = await _call(client, "brief_search", {"query": "RRF"})
             assert hits["briefs"][0]["path"] == saved["path"]
+            assert hits["briefs"][0]["binding_mix"] == {"dataset": 1}
+            assert hits["briefs"][0]["recheck_due"] == 0
 
             again = await _call(client, "research_start", {"topic": "how does RRF work"})
             assert again["similar_briefs"]

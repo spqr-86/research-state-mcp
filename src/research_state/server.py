@@ -54,6 +54,12 @@ def research_start(topic: str) -> dict:
     same topic — if one of them already answers the question, read that file
     and stop: a repeat question is supposed to cost nothing.
 
+    Each hit carries `age_days` plus counted freshness: `recheck_due` (facts whose
+    recheck date has passed), `recheck_total`, `binding_mix` (how many facts are
+    timeless / dataset / vendor / world) and `unlabelled` (facts stored before
+    bindings existed). Age alone decides nothing — a year-old brief of timeless
+    mechanisms is fine, one due `world` fact can make a fortnight-old brief lie.
+
     Args:
         topic: The research question in the user's own words.
     """
@@ -138,10 +144,7 @@ def fragments_for(url: str, query: str, k: int = 5, neighbours: int = 1) -> dict
         }
     found = fragments.extract(page["content"], query, k=k, neighbours=neighbours)
     conn = connection()
-    found = [
-        issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f)
-        for f in found
-    ]
+    found = [issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f) for f in found]
     paragraphs_total = len(fragments.split_paragraphs(page["content"]))
     metrics.record_fetch(
         conn,
@@ -200,13 +203,44 @@ def research_finish(
     Args:
         job_id: From `research_start`.
         summary: The synthesis, in prose. Not claim-checked.
-        claims: One dict per claim: `{text, kind, fragment_id, quote}`. `kind` is
-            "fact" or "assumption". A fact needs a `fragment_id` from
+        claims: One dict per claim:
+            `{text, kind, fragment_id, quote, binding, bound_to, source_class}`.
+            `kind` is "fact" or "assumption". A fact needs a `fragment_id` from
             `fragments_for` and a `quote` copied verbatim out of that fragment —
             the server checks the quote is really there, so pointing at an
-            unrelated fragment fails. An assumption needs neither and is printed
-            in the brief as an assumption.
+            unrelated fragment fails. An assumption needs none of this and is
+            printed in the brief as an assumption.
+
+            A fact also has to say what it is true *of*, because a brief has more
+            than one shelf life:
+            - `binding`: "timeless" (mechanism, definition, past event — never
+              expires), "dataset" (a number measured on a named model / dataset /
+              benchmark version), "vendor" (price, product default, limit),
+              "world" (the current state of the world or a leaderboard — can go
+              silently false within weeks).
+            - `bound_to`: what exactly, e.g. "jina-embeddings-v2-small on Quora"
+              or "Anthropic, July 2026". Required for everything except
+              "timeless", and must be absent for "timeless".
+            - `recheck_after`: ISO date. Set it when you know better; otherwise
+              the server fills it from the binding (dataset +365 days, vendor
+              +90, world +30 — a convention, not a measurement).
+            - `source_class`: "primary" (paper, official doc, dataset), "vendor"
+              (a vendor page about its own product) or "secondary" (a retelling,
+              blog or roundup).
+
         gaps: What you could not answer. Required while any subquestion is open.
+
+    Returns the brief's path plus `warnings` — counted mechanically, never a
+    reason to refuse:
+    - `secondary_only` — this fact rests on a retelling.
+    - `unique_domain` — no other fact in the brief rests on that domain, so
+      nothing inside the brief cross-confirms it. On a brief with a single fact
+      this always fires; that is expected, not a bug.
+    - `single_domain_brief` (`index` is None) — every fact in the brief comes from
+      the same site, so the brief is one source wearing several hats.
+
+    Judging whether that matters is yours; a fact that decides something gets read
+    in the primary source.
     """
     conn = connection()
     gaps = gaps or []
@@ -241,6 +275,8 @@ def research_finish(
 @mcp.tool
 def brief_search(query: str, limit: int = 3) -> dict:
     """Search briefs from past research. Returns paths and snippets, not bodies.
+
+    Hits carry the same freshness counters as `research_start`.
 
     Args:
         query: The topic in natural language.
