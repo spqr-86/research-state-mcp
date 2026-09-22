@@ -41,9 +41,7 @@ def test_split_paragraphs_on_empty_text():
 
 
 def test_rank_finds_the_relevant_paragraph():
-    result = fragments.extract(
-        PAGE, "what is the default value of k", k=1, neighbours=0
-    )
+    result = fragments.extract(PAGE, "what is the default value of k", k=1, neighbours=0)
     assert len(result) == 1
     assert "60" in result[0]["text"]
 
@@ -58,9 +56,7 @@ def test_extract_returns_neighbour_context():
 
 
 def test_extract_never_returns_the_whole_page():
-    result = fragments.extract(
-        PAGE, "rank fusion score normalisation", k=2, neighbours=0
-    )
+    result = fragments.extract(PAGE, "rank fusion score normalisation", k=2, neighbours=0)
     joined = "\n".join(f["text"] for f in result)
     assert "kittens" not in joined
     assert len(joined) < len(PAGE)
@@ -69,23 +65,17 @@ def test_extract_never_returns_the_whole_page():
 def test_extract_respects_k():
     """k is a cap on returned fragments — merging neighbours may yield fewer, never more."""
     for k in (1, 2, 3):
-        assert (
-            1 <= len(fragments.extract(PAGE, "rank list score", k=k, neighbours=0)) <= k
-        )
+        assert 1 <= len(fragments.extract(PAGE, "rank list score", k=k, neighbours=0)) <= k
 
 
 def test_extract_works_on_russian():
-    result = fragments.extract(
-        RUSSIAN_PAGE, "чему равна константа k", k=1, neighbours=0
-    )
+    result = fragments.extract(RUSSIAN_PAGE, "чему равна константа k", k=1, neighbours=0)
     assert "шестидесяти" in result[0]["text"]
 
 
 def test_extract_survives_fts_operator_characters_in_query():
     """A raw user query may contain quotes, NEAR, AND, hyphens — none may crash FTS5."""
-    result = fragments.extract(
-        PAGE, 'k "AND" NEAR OR (rank) - default*', k=1, neighbours=0
-    )
+    result = fragments.extract(PAGE, 'k "AND" NEAR OR (rank) - default*', k=1, neighbours=0)
     assert result
 
 
@@ -105,9 +95,7 @@ def test_extract_merges_adjacent_hits_into_one_fragment():
 
 
 def test_scores_are_descending():
-    result = fragments.extract(
-        PAGE, "rank fusion normalisation score", k=3, neighbours=0
-    )
+    result = fragments.extract(PAGE, "rank fusion normalisation score", k=3, neighbours=0)
     scores = [f["score"] for f in result]
     assert scores == sorted(scores, reverse=True)
 
@@ -158,9 +146,7 @@ def test_splitting_long_paragraphs_keeps_spans_exact():
 
 def test_normal_pages_are_not_re_split():
     """The cap must not change behaviour on ordinary prose."""
-    assert fragments.split_paragraphs(PAGE) == [
-        p.strip() for p in PAGE.split("\n\n") if p.strip()
-    ]
+    assert fragments.split_paragraphs(PAGE) == [p.strip() for p in PAGE.split("\n\n") if p.strip()]
 
 
 def test_unstructured_pages_are_flagged():
@@ -206,8 +192,7 @@ def test_cached_page_strips_the_meta_prefix_from_title(foreign_cache):
 
 def test_cached_page_keeps_a_plain_title(foreign_cache):
     assert (
-        fragments.cached_page(foreign_cache, "https://example.com/plain")["title"]
-        == "Plain title"
+        fragments.cached_page(foreign_cache, "https://example.com/plain")["title"] == "Plain title"
     )
 
 
@@ -216,19 +201,14 @@ def test_cached_page_returns_none_for_a_miss(foreign_cache):
 
 
 def test_cached_page_returns_none_when_cache_file_is_absent(tmp_path):
-    assert (
-        fragments.cached_page(tmp_path / "no-such.sqlite", "https://example.com")
-        is None
-    )
+    assert fragments.cached_page(tmp_path / "no-such.sqlite", "https://example.com") is None
 
 
 def test_cached_page_reads_a_write_protected_cache(foreign_cache):
     """The cache belongs to free-search-mcp; we must never need write access to it."""
     foreign_cache.chmod(0o444)
     try:
-        assert (
-            fragments.cached_page(foreign_cache, "https://example.com/rrf") is not None
-        )
+        assert fragments.cached_page(foreign_cache, "https://example.com/rrf") is not None
     finally:
         foreign_cache.chmod(0o644)
 

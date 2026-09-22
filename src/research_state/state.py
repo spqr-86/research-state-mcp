@@ -93,9 +93,7 @@ def set_plan(conn: sqlite3.Connection, job_id: str, subquestions: list[str]) -> 
     def op(c: sqlite3.Connection) -> dict:
         existing = {
             r["norm"]
-            for r in c.execute(
-                "SELECT norm FROM subquestions WHERE job_id = ?", (job_id,)
-            )
+            for r in c.execute("SELECT norm FROM subquestions WHERE job_id = ?", (job_id,))
         }
         next_id = (
             c.execute(

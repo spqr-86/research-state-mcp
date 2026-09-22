@@ -10,9 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-DEFAULT_STATE_DB = (
-    Path.home() / ".local" / "share" / "research-state-mcp" / "state.sqlite"
-)
+DEFAULT_STATE_DB = Path.home() / ".local" / "share" / "research-state-mcp" / "state.sqlite"
 DEFAULT_SEARCH_CACHE = Path.home() / ".cache" / "search-mcp" / "cache.sqlite"
 DEFAULT_BRIEF_DIR = Path.home() / "knowledge" / "research"
 

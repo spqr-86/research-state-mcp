@@ -22,26 +22,16 @@ FRAG = {
 
 
 def test_record_returns_a_stable_id(conn):
-    first = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG
-    )
-    second = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG
-    )
+    first = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)
+    second = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)
     assert first["fragment_id"] == second["fragment_id"]
     assert len(first["fragment_id"]) == 16
 
 
 def test_id_changes_with_url_offset_or_fetch_time(conn):
-    base = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG
-    )
-    other_url = issued.record(
-        conn, url="https://e.com/b", fetched_at=1753500000, fragment=FRAG
-    )
-    later = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753600000, fragment=FRAG
-    )
+    base = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)
+    other_url = issued.record(conn, url="https://e.com/b", fetched_at=1753500000, fragment=FRAG)
+    later = issued.record(conn, url="https://e.com/a", fetched_at=1753600000, fragment=FRAG)
     moved = issued.record(
         conn,
         url="https://e.com/a",
@@ -58,9 +48,9 @@ def test_id_changes_with_url_offset_or_fetch_time(conn):
 
 
 def test_get_returns_the_stored_snapshot(conn):
-    fid = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG
-    )["fragment_id"]
+    fid = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)[
+        "fragment_id"
+    ]
     stored = issued.get(conn, fid)
     assert stored["exact"] == FRAG["text"]
     assert stored["url"] == "https://e.com/a"
@@ -79,8 +69,6 @@ def test_record_is_idempotent(conn):
 
 
 def test_record_keeps_the_original_fragment_fields(conn):
-    result = issued.record(
-        conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG
-    )
+    result = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)
     assert result["text"] == FRAG["text"]
     assert result["score"] == FRAG["score"]

@@ -279,12 +279,19 @@ def test_id_changes_with_url_offset_or_fetch_time(conn):
     moved = issued.record(
         conn, url="https://e.com/a", fetched_at=1753500000, fragment={**FRAG, "char_start": 200}
     )
-    ids = {base["fragment_id"], other_url["fragment_id"], later["fragment_id"], moved["fragment_id"]}
+    ids = {
+        base["fragment_id"],
+        other_url["fragment_id"],
+        later["fragment_id"],
+        moved["fragment_id"],
+    }
     assert len(ids) == 4
 
 
 def test_get_returns_the_stored_snapshot(conn):
-    fid = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)["fragment_id"]
+    fid = issued.record(conn, url="https://e.com/a", fetched_at=1753500000, fragment=FRAG)[
+        "fragment_id"
+    ]
     stored = issued.get(conn, fid)
     assert stored["exact"] == FRAG["text"]
     assert stored["url"] == "https://e.com/a"
@@ -429,19 +436,17 @@ In `connection()`, add `issued.init_schema(_conn)` next to `state.init_schema(_c
 In `fragments_for`, replace the `found = ...` line and the return with:
 
 ```python
-    found = fragments.extract(page["content"], query, k=k, neighbours=neighbours)
-    conn = connection()
-    found = [
-        issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f) for f in found
-    ]
-    metrics.record_fetch(
-        conn,
-        url=url,
-        paragraphs_total=len(fragments.split_paragraphs(page["content"])),
-        paragraphs_returned=len(found),
-        chars_total=len(page["content"]),
-        chars_returned=sum(len(f["text"]) for f in found),
-    )
+found = fragments.extract(page["content"], query, k=k, neighbours=neighbours)
+conn = connection()
+found = [issued.record(conn, url=url, fetched_at=page["fetched_at"], fragment=f) for f in found]
+metrics.record_fetch(
+    conn,
+    url=url,
+    paragraphs_total=len(fragments.split_paragraphs(page["content"])),
+    paragraphs_returned=len(found),
+    chars_total=len(page["content"]),
+    chars_returned=sum(len(f["text"]) for f in found),
+)
 ```
 
 `metrics` does not exist yet — write Task 5 first if you are executing strictly in
@@ -497,12 +502,20 @@ def test_stats_on_an_empty_db(conn):
 
 def test_stats_sum_across_fetches(conn):
     metrics.record_fetch(
-        conn, url="https://e.com/a", paragraphs_total=60, paragraphs_returned=2,
-        chars_total=1000, chars_returned=100,
+        conn,
+        url="https://e.com/a",
+        paragraphs_total=60,
+        paragraphs_returned=2,
+        chars_total=1000,
+        chars_returned=100,
     )
     metrics.record_fetch(
-        conn, url="https://e.com/b", paragraphs_total=20, paragraphs_returned=3,
-        chars_total=1000, chars_returned=300,
+        conn,
+        url="https://e.com/b",
+        paragraphs_total=20,
+        paragraphs_returned=3,
+        chars_total=1000,
+        chars_returned=300,
     )
     s = metrics.stats(conn)
     assert s["fetches"] == 2
@@ -770,7 +783,9 @@ def validate_claims(conn: sqlite3.Connection, claims: list[dict]) -> list[dict]:
             continue
         fragment_id, quote = claim.get("fragment_id"), claim.get("quote")
         if not fragment_id or not quote:
-            problems.append({"index": index, "reason": "missing_citation", "text": claim.get("text")})
+            problems.append(
+                {"index": index, "reason": "missing_citation", "text": claim.get("text")}
+            )
             continue
         fragment = issued.get(conn, fragment_id)
         if fragment is None:
@@ -820,7 +835,9 @@ def test_save_writes_a_markdown_file_and_returns_its_path(conn, fid, tmp_path):
         job_id="job1",
         topic="How does RRF work",
         summary="RRF fuses ranked lists.",
-        claims=[{"text": "k is 60", "kind": "fact", "fragment_id": fid, "quote": "k defaults to 60"}],
+        claims=[
+            {"text": "k is 60", "kind": "fact", "fragment_id": fid, "quote": "k defaults to 60"}
+        ],
         gaps=["nothing on Russian-language sources"],
         brief_dir=tmp_path,
         today="2026-07-26",
@@ -836,9 +853,14 @@ def test_save_writes_a_markdown_file_and_returns_its_path(conn, fid, tmp_path):
 
 def test_assumptions_are_labelled_in_the_file(conn, tmp_path):
     briefs.save(
-        conn, job_id="j", topic="T", summary="s",
+        conn,
+        job_id="j",
+        topic="T",
+        summary="s",
         claims=[{"text": "likely true", "kind": "assumption"}],
-        gaps=[], brief_dir=tmp_path, today="2026-07-26",
+        gaps=[],
+        brief_dir=tmp_path,
+        today="2026-07-26",
     )
     body = (tmp_path / "2026-07-26-t.md").read_text()
     assert "assumption" in body.lower()
@@ -847,9 +869,14 @@ def test_assumptions_are_labelled_in_the_file(conn, tmp_path):
 def test_save_refuses_an_invalid_claim_and_writes_nothing(conn, tmp_path):
     with pytest.raises(briefs.InvalidBrief) as exc:
         briefs.save(
-            conn, job_id="j", topic="T", summary="s",
+            conn,
+            job_id="j",
+            topic="T",
+            summary="s",
             claims=[{"text": "x", "kind": "fact"}],
-            gaps=[], brief_dir=tmp_path, today="2026-07-26",
+            gaps=[],
+            brief_dir=tmp_path,
+            today="2026-07-26",
         )
     assert exc.value.problems[0]["reason"] == "missing_citation"
     assert list(tmp_path.iterdir()) == []
@@ -858,8 +885,14 @@ def test_save_refuses_an_invalid_claim_and_writes_nothing(conn, tmp_path):
 def test_saving_the_same_topic_twice_does_not_overwrite(conn, tmp_path):
     for _ in range(2):
         briefs.save(
-            conn, job_id="j", topic="T", summary="s", claims=[], gaps=[],
-            brief_dir=tmp_path, today="2026-07-26",
+            conn,
+            job_id="j",
+            topic="T",
+            summary="s",
+            claims=[],
+            gaps=[],
+            brief_dir=tmp_path,
+            today="2026-07-26",
         )
     assert len(list(tmp_path.iterdir())) == 2
 ```
@@ -937,7 +970,7 @@ def render(topic: str, summary: str, claims: list[dict], gaps: list[str], source
             continue
         url = sources.get(claim["fragment_id"], "")
         lines.append(f"- {claim['text']}")
-        lines.append(f'  > {claim["quote"]}')
+        lines.append(f"  > {claim['quote']}")
         lines.append(f"  — <{url}> `{claim['fragment_id']}`")
     if gaps:
         lines += ["", "## Gaps", ""] + [f"- {g}" for g in gaps]
@@ -1032,8 +1065,14 @@ git commit -m "feat: store a validated brief as markdown and index it"
 # append to tests/test_briefs.py
 def test_search_finds_a_brief_by_topic(conn, tmp_path):
     briefs.save(
-        conn, job_id="j", topic="Reciprocal rank fusion", summary="RRF fuses lists.",
-        claims=[], gaps=[], brief_dir=tmp_path, today="2026-07-26",
+        conn,
+        job_id="j",
+        topic="Reciprocal rank fusion",
+        summary="RRF fuses lists.",
+        claims=[],
+        gaps=[],
+        brief_dir=tmp_path,
+        today="2026-07-26",
     )
     hits = briefs.search(conn, "rank fusion")
     assert len(hits) == 1
@@ -1044,24 +1083,42 @@ def test_search_finds_a_brief_by_topic(conn, tmp_path):
 
 def test_search_returns_nothing_for_an_unrelated_query(conn, tmp_path):
     briefs.save(
-        conn, job_id="j", topic="Reciprocal rank fusion", summary="s",
-        claims=[], gaps=[], brief_dir=tmp_path, today="2026-07-26",
+        conn,
+        job_id="j",
+        topic="Reciprocal rank fusion",
+        summary="s",
+        claims=[],
+        gaps=[],
+        brief_dir=tmp_path,
+        today="2026-07-26",
     )
     assert briefs.search(conn, "квантовая хромодинамика") == []
 
 
 def test_search_survives_operator_characters(conn, tmp_path):
     briefs.save(
-        conn, job_id="j", topic="RRF", summary="s", claims=[], gaps=[],
-        brief_dir=tmp_path, today="2026-07-26",
+        conn,
+        job_id="j",
+        topic="RRF",
+        summary="s",
+        claims=[],
+        gaps=[],
+        brief_dir=tmp_path,
+        today="2026-07-26",
     )
     assert briefs.search(conn, 'NEAR "AND" (rrf) *') is not None
 
 
 def test_search_never_returns_the_brief_body(conn, tmp_path):
     briefs.save(
-        conn, job_id="j", topic="RRF", summary="s" * 5000, claims=[], gaps=[],
-        brief_dir=tmp_path, today="2026-07-26",
+        conn,
+        job_id="j",
+        topic="RRF",
+        summary="s" * 5000,
+        claims=[],
+        gaps=[],
+        brief_dir=tmp_path,
+        today="2026-07-26",
     )
     hit = briefs.search(conn, "rrf")[0]
     assert len(hit["snippet"]) < 500
@@ -1215,21 +1272,32 @@ def test_brief_lifecycle(wired, tmp_path, monkeypatch):
 
     async def scenario() -> None:
         async with Client(server.mcp) as client:
-            job_id = (await _call(client, "research_start", {"topic": "how does RRF work"}))["job_id"]
+            job_id = (await _call(client, "research_start", {"topic": "how does RRF work"}))[
+                "job_id"
+            ]
             await _call(client, "research_plan", {"job_id": job_id, "subquestions": ["default k"]})
             frags = await _call(
-                client, "fragments_for",
+                client,
+                "fragments_for",
                 {"url": "https://example.com/rrf", "query": "default value of k", "k": 1},
             )
             fid = frags["fragments"][0]["fragment_id"]
 
             # a fabricated quote must be refused, and nothing written
             refused = await _call(
-                client, "research_finish",
+                client,
+                "research_finish",
                 {
-                    "job_id": job_id, "summary": "s",
-                    "claims": [{"text": "k is 42", "kind": "fact", "fragment_id": fid,
-                                "quote": "k defaults to 42"}],
+                    "job_id": job_id,
+                    "summary": "s",
+                    "claims": [
+                        {
+                            "text": "k is 42",
+                            "kind": "fact",
+                            "fragment_id": fid,
+                            "quote": "k defaults to 42",
+                        }
+                    ],
                     "gaps": ["none"],
                 },
             )
@@ -1240,11 +1308,19 @@ def test_brief_lifecycle(wired, tmp_path, monkeypatch):
             await _call(client, "research_mark", {"job_id": job_id, "subq_id": 1, "answer": "60"})
 
             saved = await _call(
-                client, "research_finish",
+                client,
+                "research_finish",
                 {
-                    "job_id": job_id, "summary": "RRF fuses ranked lists.",
-                    "claims": [{"text": "k defaults to 60", "kind": "fact", "fragment_id": fid,
-                                "quote": "constant k defaults to 60"}],
+                    "job_id": job_id,
+                    "summary": "RRF fuses ranked lists.",
+                    "claims": [
+                        {
+                            "text": "k defaults to 60",
+                            "kind": "fact",
+                            "fragment_id": fid,
+                            "quote": "constant k defaults to 60",
+                        }
+                    ],
                     "gaps": [],
                 },
             )

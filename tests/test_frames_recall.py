@@ -898,9 +898,7 @@ def test_the_table_text_flag_is_parsed():
 
 
 def test_table_text_is_recorded_in_the_report():
-    report = fr.evaluate(
-        [], lambda url: fr.PageResult.missing(), 5, 1, text_shape="table"
-    )
+    report = fr.evaluate([], lambda url: fr.PageResult.missing(), 5, 1, text_shape="table")
     assert report.as_dict()["text_shape"] == "table"
 
 

@@ -56,9 +56,7 @@ log = structlog.get_logger(__name__)
 ROWS_URL = "https://datasets-server.huggingface.co/rows"
 DATASET = "google/frames-benchmark"
 WIKI_API = "https://en.wikipedia.org/w/api.php"
-USER_AGENT = (
-    "research-state-mcp-eval/0.1 (https://github.com/spqr86/research-state-mcp)"
-)
+USER_AGENT = "research-state-mcp-eval/0.1 (https://github.com/spqr86/research-state-mcp)"
 
 PAGE_SIZE = 100  # datasets-server hard limit
 DEFAULT_LIMIT = 100
@@ -68,9 +66,7 @@ SHORT_ANSWER_CHARS = 4  # "42", "1912", "two" — a match on these is barely evi
 
 _LINK_FIELD = re.compile(r"^wikipedia_link_(\d+)")
 _URL = re.compile(r"https?://\S+")
-_WIKI_ARTICLE = re.compile(
-    r"^https?://[a-z0-9-]+\.wikipedia\.org/wiki/(?P<title>[^?#]+)"
-)
+_WIKI_ARTICLE = re.compile(r"^https?://[a-z0-9-]+\.wikipedia\.org/wiki/(?P<title>[^?#]+)")
 _SPACE = re.compile(r"\s+")
 _WORDISH = re.compile(r"\w")
 
@@ -261,11 +257,7 @@ def download_page(
         if page.get("missing"):
             continue
         raw = page.get("extract")
-        text = (
-            (raw or "").strip()
-            if restructure is False
-            else paragraphs_from_extract(raw)
-        )
+        text = (raw or "").strip() if restructure is False else paragraphs_from_extract(raw)
         if text:
             return PageResult.ok(text)
 
@@ -469,9 +461,7 @@ def _finalise(report: Report) -> Report:
     report.recall_at_k_per_example_when_present = (
         report.hits_per_example / present if present else 0.0
     )
-    report.recall_at_k_per_page_when_present = (
-        report.hits_per_page / present if present else 0.0
-    )
+    report.recall_at_k_per_page_when_present = report.hits_per_page / present if present else 0.0
     report.recall_short_answers = (
         report.short_answer_hits / report.short_answers_on_page
         if report.short_answers_on_page
@@ -581,8 +571,7 @@ def _print_summary(report: Report) -> None:
         f"pages per example   {report.avg_pages:.2f}",
         f"answer on page      {report.answer_on_page} (baseline)",
         f"recall@{report.k} example  {report.recall_at_k_per_example:.1%} of scored",
-        f"  | present         {report.recall_at_k_per_example_when_present:.1%}"
-        f"  <- headline",
+        f"  | present         {report.recall_at_k_per_example_when_present:.1%}  <- headline",
         f"recall@{report.k} per page {report.recall_at_k_per_page:.1%} of scored"
         f" (up to k x {report.avg_pages:.1f} fragments)",
         f"  | present         {report.recall_at_k_per_page_when_present:.1%}",

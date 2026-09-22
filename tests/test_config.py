@@ -4,10 +4,7 @@ from research_state import config
 
 
 def test_defaults_live_under_home():
-    assert (
-        config.state_db_path()
-        == Path.home() / ".local/share/research-state-mcp/state.sqlite"
-    )
+    assert config.state_db_path() == Path.home() / ".local/share/research-state-mcp/state.sqlite"
     assert config.search_cache_path() == Path.home() / ".cache/search-mcp/cache.sqlite"
     assert config.brief_dir() == Path.home() / "knowledge/research"
 
