@@ -1,10 +1,14 @@
 # research-state-mcp
 
+[![CI](https://github.com/spqr-86/research-state-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/spqr-86/research-state-mcp/actions/workflows/ci.yml)
+
 **Model-free MCP infrastructure for research state, context compression, and citation provenance.**
 
 Most research agents spend context on raw pages and then rely on the model to remember what was asked, what remains open, and where each claim came from. This server moves those responsibilities into a small deterministic layer.
 
 **No LLM. No embeddings. No API key.** The MCP client reasons; this server owns state, fragment retrieval, provenance, citation checks, brief storage, and freshness metadata.
+
+**Current verification:** 272 tests passing locally, including two end-to-end smoke scenarios through the real FastMCP client/server protocol.
 
 ## Why this project exists
 
@@ -103,7 +107,7 @@ The server intentionally owns the parts that do not require model judgement:
 - fact freshness is stored per claim (`timeless`, `dataset`, `vendor`, `world`) rather than inferred from the age of a whole brief;
 - the external search cache is read-only.
 
-The smoke suite exercises the MCP protocol itself, including state persistence, fragment retrieval, citation rejection, gap handling, brief storage/search and stats.
+The smoke suite exercises the real FastMCP client/server protocol, including state persistence, fragment retrieval, citation rejection, gap handling, brief storage/search and stats.
 
 ## Why FTS5 instead of embeddings?
 
