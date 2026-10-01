@@ -27,11 +27,33 @@ def test_anchor_misses_when_no_alternative_matches():
 def test_gate_counts_answers_with_for_against_tally_and_against_url():
     answers = [
         "Да. за 3 / против 1, против: https://example.org/critique",
-        "Да. За 2 / против 0 — искал «X limitations», ничего",  # noqa: RUF001
+        "Да. За 2 / против 0 — искал «X limitations», ничего",
         "Просто ответ без счёта",
     ]
     got = rg.gate_metrics(answers)
     assert got == {"subq": 3, "tallied": 2, "against_url": 1, "against_zero": 1}
+
+
+def test_gate_accepts_sources_listed_between_the_for_count_and_the_slash():
+    answers = ["Итог. За 3 (a.ru, b.ru, vk) / против 2 — https://c.ru/x, https://d.ru"]
+    assert rg.gate_metrics(answers) == {
+        "subq": 1,
+        "tallied": 1,
+        "against_url": 1,
+        "against_zero": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "За (позитив) 3 / против 3 — https://o.ru/r",
+        "За «цена выше рынка» 3 (Яндекс, ЦИАН) / против 2 — https://c.ru",
+        "Контраргументы есть. За риски 4 / против 2 — https://r.ru",
+    ],
+)
+def test_gate_accepts_a_label_between_for_and_its_count(answer):
+    assert rg.gate_metrics([answer])["tallied"] == 1
 
 
 def test_gate_on_no_subquestions_is_all_zero():

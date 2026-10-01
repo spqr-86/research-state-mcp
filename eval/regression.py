@@ -39,7 +39,12 @@ import structlog
 
 log = structlog.get_logger(__name__)
 
-_TALLY = re.compile(r"за\s*(\d+)\s*/\s*против\s*(\d+)", re.IGNORECASE)
+# The tally as agents actually write it: a label may sit between "for" and its count
+# ("for (positive) 3", "for risks 4"), and sources may follow the count in parentheses.
+_TALLY = re.compile(
+    r"\bза\b[^/\n]{0,120}?(\d+)(?:\s*\([^)\n]{0,300}\))?\s*/\s*против\s*(\d+)",
+    re.IGNORECASE,
+)
 _AGAINST_URL = re.compile(r"против[^\n]*?https?://", re.IGNORECASE)
 _WS = re.compile(r"\s+")
 _SECTION = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
